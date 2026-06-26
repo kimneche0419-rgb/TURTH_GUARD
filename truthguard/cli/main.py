@@ -160,10 +160,34 @@ def init(force: bool):
     console.print(f" - 생성됨: [cyan]{config_path}[/cyan]")
     console.print(" - 생성됨: [cyan]uploads/[/cyan] 디렉터리")
     console.print("\n[bold]다음 단계:[/bold]")
-    console.print(" 1. `truthguard scan <파일경로>` 또는 `tg scan <파일경로>` 명령어로 파일을 분석해보세요.")
-    console.print(" 2. `python truthguard_server.py`를 실행하여 REST API 서버를 시작하거나,")
-    console.print("    `run.bat` 스크립트를 사용해 대시보드와 서버를 한 번에 기동하세요.")
+    console.print(" 1. `tg scan <파일경로>` 명령어로 파일을 분석해보세요.")
+    console.print(" 2. `tg dev` 명령어로 대시보드와 서버를 한 번에 기동하세요.")
+
+@main.command(name="dev")
+def dev():
+    """
+    백엔드 API 서버와 프론트엔드 대시보드를 동시에 실행합니다.
+    """
+    import subprocess
+    import sys
+    
+    console.print("[bold green]Starting TruthGuard Development Servers...[/bold green]")
+    try:
+        if sys.platform == "win32":
+            subprocess.Popen('start "TruthGuard Backend" cmd /c ".venv\\Scripts\\python.exe -m uvicorn truthguard_server:app --reload --port 8000"', shell=True)
+            subprocess.Popen('start "TruthGuard Dashboard" cmd /c "npm run dev"', shell=True)
+        else:
+            subprocess.Popen('.venv/bin/uvicorn truthguard_server:app --reload --port 8000', shell=True)
+            subprocess.Popen('npm run dev', shell=True)
+            
+        console.print("[bold green]Success:[/bold green] 두 서버가 새 터미널 창에서 정상적으로 기동되었습니다!")
+        console.print(" - Backend: [cyan]http://localhost:8000[/cyan]")
+        console.print(" - Dashboard: [cyan]http://localhost:5173[/cyan]")
+    except Exception as e:
+        console.print(f"[bold red]서버 기동 실패:[/bold red] {str(e)}")
+        raise click.ClickException(f"Failed to start servers: {str(e)}")
 
 if __name__ == "__main__":
     main()
+
 
