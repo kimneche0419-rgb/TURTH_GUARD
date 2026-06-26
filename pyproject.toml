@@ -35,6 +35,8 @@ all = ["transformers", "torch", "opencv-python", "pillow", "librosa"]
 
 [tool.poetry.scripts]
 truthguard = "truthguard.cli.main:main"
+tg = "truthguard.cli.main:main"
+
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"

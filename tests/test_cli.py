@@ -5,7 +5,7 @@ import unittest
 from click.testing import CliRunner
 from PIL import Image
 
-from truthguard.cli.main import scan
+from truthguard.cli.main import scan, init
 
 class TestTruthGuardCLI(unittest.TestCase):
     def setUp(self):
@@ -51,5 +51,24 @@ class TestTruthGuardCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("TruthGuard Scan Summary", result.output)
 
+    def test_cli_init_command_creates_config(self):
+        # 격리된 임시 파일시스템 내에서 테스트 실행
+        with self.runner.isolated_filesystem():
+            # 1. 첫 실행: 설정 파일 및 uploads 폴더가 정상 생성되는지 검증
+            result = self.runner.invoke(init)
+            self.assertEqual(result.exit_code, 0)
+            self.assertTrue(os.path.exists("truthguard.json"))
+            self.assertTrue(os.path.exists("uploads"))
+            
+            # 2. 두 번째 실행: 덮어쓰기 옵션(force) 없이 실행 시 예외 발생 검증
+            result2 = self.runner.invoke(init)
+            self.assertNotEqual(result2.exit_code, 0)
+            self.assertIn("Config file already exists", result2.output)
+            
+            # 3. 세 번째 실행: --force 옵션 적용 시 정상 재작성 완료 검증
+            result3 = self.runner.invoke(init, ["--force"])
+            self.assertEqual(result3.exit_code, 0)
+
 if __name__ == "__main__":
     unittest.main()
+
