@@ -187,6 +187,50 @@ def dev():
         console.print(f"[bold red]서버 기동 실패:[/bold red] {str(e)}")
         raise click.ClickException(f"Failed to start servers: {str(e)}")
 
+@main.command(name="api")
+@click.option("--port", type=int, default=8000, help="서버 포트 번호")
+@click.option("--host", type=str, default="127.0.0.1", help="서버 호스트 주소")
+def api(port: int, host: str):
+    """
+    FastAPI 백엔드 API 서버를 시작합니다.
+    """
+    import subprocess
+    import sys
+    console.print(f"[bold green]Starting TruthGuard API Server on http://{host}:{port}...[/bold green]")
+    try:
+        cmd = f".venv\\Scripts\\python.exe -m uvicorn truthguard_server:app --reload --port {port} --host {host}"
+        if sys.platform != "win32":
+            cmd = f".venv/bin/python -m uvicorn truthguard_server:app --reload --port {port} --host {host}"
+        subprocess.call(cmd, shell=True)
+    except Exception as e:
+        console.print(f"[bold red]API 서버 기동 실패:[/bold red] {str(e)}")
+        raise click.ClickException(f"Failed to start API server: {str(e)}")
+
+@main.command(name="web")
+def web():
+    """
+    React 프론트엔드 대시보드를 시작합니다.
+    """
+    import subprocess
+    console.print("[bold green]Starting TruthGuard React Dashboard...[/bold green]")
+    try:
+        subprocess.call("npm run dev", shell=True)
+    except Exception as e:
+        console.print(f"[bold red]대시보드 기동 실패:[/bold red] {str(e)}")
+        raise click.ClickException(f"Failed to start React Dashboard: {str(e)}")
+
+@main.command(name="cli")
+@click.argument("target_path", type=click.Path(exists=True))
+@click.option("-c", "--config", type=click.Path(), help="설정 JSON 파일 경로")
+@click.option("-f", "--format", type=click.Choice(["text", "json", "table"]), default="text", help="출력 형식")
+@click.option("--threshold", type=float, default=0.5, help="변조 위험 판정 임계점")
+@click.pass_context
+def cli(ctx, target_path: str, config: str, format: str, threshold: float):
+    """
+    tg scan과 동일하게 지정된 파일을 CLI에서 검증합니다.
+    """
+    ctx.forward(scan)
+
 if __name__ == "__main__":
     main()
 
