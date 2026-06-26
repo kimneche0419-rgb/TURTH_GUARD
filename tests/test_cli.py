@@ -2,10 +2,11 @@
 import os
 import tempfile
 import unittest
+import unittest.mock
 from click.testing import CliRunner
 from PIL import Image
 
-from truthguard.cli.main import scan, init
+from truthguard.cli.main import scan, init, dev
 
 class TestTruthGuardCLI(unittest.TestCase):
     def setUp(self):
@@ -69,6 +70,15 @@ class TestTruthGuardCLI(unittest.TestCase):
             result3 = self.runner.invoke(init, ["--force"])
             self.assertEqual(result3.exit_code, 0)
 
+    @unittest.mock.patch("subprocess.Popen")
+    def test_cli_dev_command_starts_servers(self, mock_popen):
+        # dev 명령어 실행 시 uvicorn 및 npm run dev 서브프로세스가 기동되는지 검증
+        result = self.runner.invoke(dev)
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Starting TruthGuard Development Servers", result.output)
+        self.assertEqual(mock_popen.call_count, 2)
+
 if __name__ == "__main__":
     unittest.main()
+
 
