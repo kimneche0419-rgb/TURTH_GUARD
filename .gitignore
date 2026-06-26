@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Node / JS
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Logs and databases
+*.log
+truthguard.db
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Project specific
+uploads/
+temp_ela_*
