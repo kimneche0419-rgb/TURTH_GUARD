@@ -6,7 +6,7 @@ import unittest.mock
 from click.testing import CliRunner
 from PIL import Image
 
-from truthguard.cli.main import scan, init, dev
+from truthguard.cli.main import scan, init, dev, api, web, cli
 
 class TestTruthGuardCLI(unittest.TestCase):
     def setUp(self):
@@ -78,7 +78,31 @@ class TestTruthGuardCLI(unittest.TestCase):
         self.assertIn("Starting TruthGuard Development Servers", result.output)
         self.assertEqual(mock_popen.call_count, 2)
 
+    @unittest.mock.patch("subprocess.call")
+    def test_cli_api_command_starts_server(self, mock_call):
+        # api 명령어 실행 시 uvicorn 서브프로세스가 호출되는지 검증
+        result = self.runner.invoke(api, ["--port", "8001"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Starting TruthGuard API Server on http://127.0.0.1:8001", result.output)
+        mock_call.assert_called_once()
+
+    @unittest.mock.patch("subprocess.call")
+    def test_cli_web_command_starts_dashboard(self, mock_call):
+        # web 명령어 실행 시 npm run dev 서브프로세스가 호출되는지 검증
+        result = self.runner.invoke(web)
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Starting TruthGuard React Dashboard", result.output)
+        mock_call.assert_called_once()
+
+    def test_cli_alias_command_scans_text(self):
+        # cli 명령어(scan의 별칭)로 스캔 기능이 정상 수행되는지 검증
+        result = self.runner.invoke(cli, [self.text_path])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("대상 파일", result.output)
+        self.assertIn("정상 콘텐츠", result.output)
+
 if __name__ == "__main__":
     unittest.main()
+
 
 
