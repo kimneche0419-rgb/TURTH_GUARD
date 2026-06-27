@@ -6,7 +6,7 @@ import unittest.mock
 from click.testing import CliRunner
 from PIL import Image
 
-from truthguard.cli.main import scan, init, dev, api, web, cli
+from truthguard.cli.main import scan, init, dev, api, web, cli, mcp
 
 class TestTruthGuardCLI(unittest.TestCase):
     def setUp(self):
@@ -109,8 +109,16 @@ class TestTruthGuardCLI(unittest.TestCase):
         self.assertIn("대상 파일", result.output)
         self.assertIn("정상 콘텐츠", result.output)
 
+    @unittest.mock.patch("truthguard_mcp.main")
+    def test_cli_mcp_command_starts_mcp(self, mock_mcp_main):
+        # mcp 명령어 실행 시 Stdio MCP 서버 루틴이 가동되는지 검증
+        result = self.runner.invoke(mcp)
+        self.assertEqual(result.exit_code, 0)
+        mock_mcp_main.assert_called_once()
+
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

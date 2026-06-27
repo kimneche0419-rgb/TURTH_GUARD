@@ -88,6 +88,8 @@ npm install
 | `tg web` | `.\tg web` | **대시보드 웹 서버 단독 실행** | 프론트엔드 대시보드를 현재 세션에서 단독 실행 |
 | `tg cli <파일>` | `.\tg cli <파일>` | **CLI 미디어 파일 분석 (단축)** | `tg scan` 명령어의 단축 별칭으로 터미널에서 신속하게 타겟 스캔 |
 | `tg scan <파일>` | `.\tg scan <파일>` | **CLI 미디어 파일 분석** | 파일을 분석하고 보고서를 출력합니다. (`-f json`, `-f table` 및 `--threshold` 지원) |
+| `tg mcp` | `.\tg mcp` | **MCP Stdio 표준 서버 실행** | LLM Agent(예: Claude)와 연동하기 위해 stdio 기반 JSON-RPC로 대화하는 MCP 서버 구동 |
+
 
 
 ---
