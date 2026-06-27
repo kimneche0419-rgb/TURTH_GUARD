@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { 
   ShieldCheck, 
-  ShieldAlert, 
   FileText, 
   Image as ImageIcon, 
   Video as VideoIcon, 
@@ -12,8 +11,7 @@ import {
   AlertCircle,
   HelpCircle,
   Activity,
-  Layers,
-  Search
+  Layers
 } from 'lucide-react';
 
 interface Decision {
@@ -381,7 +379,7 @@ export default function App() {
                 </div>
 
                 <div>
-                  <div style={{ display: 'flex', justifycontent: 'space-between', marginBottom: '6px', fontSize: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '14px' }}>
                     <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}><Layers size={15} /> 아티팩트/조작 오차도</span>
                     <span style={{ fontWeight: 700 }}>{(result.metrics.editing_artifact_score * 100).toFixed(1)}%</span>
                   </div>
