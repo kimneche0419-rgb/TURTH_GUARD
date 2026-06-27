@@ -49,6 +49,15 @@ export default function App() {
   const [result, setResult] = useState<ScanResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [apiKey, setApiKey] = useState(() => {
+    return localStorage.getItem('tg_api_key') || '';
+  });
+
+  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setApiKey(value);
+    localStorage.setItem('tg_api_key', value);
+  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -87,10 +96,22 @@ export default function App() {
     }
 
     try {
-      const response = await axios.post<ScanResult>('http://localhost:8000/api/v1/scan/media', formData);
+      const headers: Record<string, string> = {};
+      if (apiKey.trim()) {
+        headers['X-API-Key'] = apiKey.trim();
+      }
+      const response = await axios.post<ScanResult>(
+        'http://localhost:8000/api/v1/scan/media', 
+        formData,
+        { headers }
+      );
       setResult(response.data);
-    } catch (err) {
-      alert('분석을 시작하지 못했습니다. 백엔드 FastAPI 서버가 기동 중인지 확인하십시오.');
+    } catch (err: any) {
+      if (err.response && err.response.status === 401) {
+        alert('인증 실패: 유효하지 않은 API Key이거나 키가 입력되지 않았습니다.');
+      } else {
+        alert('분석을 시작하지 못했습니다. 백엔드 FastAPI 서버가 기동 중인지 확인하십시오.');
+      }
     } finally {
       setLoading(false);
     }
@@ -144,6 +165,26 @@ export default function App() {
         <p style={{ color: '#94a3b8', fontSize: '15px', margin: 0 }}>
           AI 가짜뉴스, 딥페이크 변조 미디어 및 오디오 분석 종합 대시보드
         </p>
+        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+          <label style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>API Key:</label>
+          <input 
+            type="password" 
+            value={apiKey} 
+            onChange={handleApiKeyChange}
+            placeholder="인증용 API Key 입력 (X-API-Key)" 
+            style={{
+              backgroundColor: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: '6px',
+              padding: '6px 12px',
+              fontSize: '13px',
+              color: '#f8fafc',
+              width: '240px',
+              outline: 'none',
+              textAlign: 'center'
+            }}
+          />
+        </div>
       </header>
 
       <main style={{ width: '100%', maxWidth: '850px' }}>

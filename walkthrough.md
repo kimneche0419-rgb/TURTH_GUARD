@@ -50,3 +50,19 @@
   * `tg init` 실행 시 `truthguard.json` 설정 파일과 `uploads/` 폴더를 생성합니다.
 * **단위 테스트 추가 및 검증 완료**:
   * [test_cli.py](file:///c:/TURTH_GUARD/tests/test_cli.py)에 각 서브 명령어의 단위 테스트를 구성하고 전체 **12개 테스트 전원 통과(PASSED)**를 기록했습니다.
+
+---
+
+## 5. API Key 보안 메커니즘 구축 및 CLI/GUI 연동
+
+* **FastAPI 백엔드 보안 헤더 검증**:
+  * [truthguard_server.py](file:///c:/TURTH_GUARD/truthguard_server.py)에 `X-API-Key` 헤더 및 `api_key` 쿼리 파라미터를 검증하는 FastAPI Security Dependency 레이어를 적용했습니다.
+  * 서버 설정 파일(`truthguard.json`) 또는 환경 변수(`TRUTHGUARD_API_KEY`)에 API Key가 설정되어 있을 때만 강제 검증을 실행하여 하위 호환성(기본값은 퍼블릭)을 유지했습니다.
+  * 권한이 유효하지 않을 시 `401 Unauthorized` 에러를 반환합니다.
+* **React GUI 대시보드 UI 통합**:
+  * [src/App.tsx](file:///c:/TURTH_GUARD/src/App.tsx) 대시보드 상단에 마스크 처리된 API Key 입력 제어부를 설계했습니다.
+  * 입력된 API Key는 브라우저의 `localStorage`에 자동 보관 및 영구 지속됩니다.
+  * 분석 요청 전송 시 `X-API-Key` 헤더를 Axios 호출 헤더에 자동 바인딩합니다. 만약 401 Unauthorized가 발생할 경우 한글로 명확한 안내 얼럿을 출력합니다.
+* **CLI 초기화 템플릿 제공**:
+  * `tg init` 시 생성되는 설정 구조에 `"api_key": ""` 필드를 기본 제공하여 사용자가 쉽게 API Key를 지정하고 서버를 구동하도록 개선하였습니다.
+
