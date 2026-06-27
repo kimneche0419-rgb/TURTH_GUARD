@@ -7,6 +7,7 @@ from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from truthguard import detect_text, detect_image, detect_video, detect_audio
+from truthguard.utils import fetch_url_text
 
 console = Console()
 
@@ -16,15 +17,23 @@ def main():
     pass
 
 @main.command(name="scan")
-@click.argument("target_path", type=click.Path(exists=True))
+@click.argument("target_path")
 @click.option("-c", "--config", type=click.Path(), help="설정 JSON 파일 경로")
 @click.option("-f", "--format", type=click.Choice(["text", "json", "table"]), default="text", help="출력 형식")
 @click.option("--threshold", type=float, default=0.5, help="변조 위험 판정 임계점")
 def scan(target_path: str, config: str, format: str, threshold: float):
     """
-    지정된 파일(텍스트, 이미지, 비디오, 오디오)의 변조 신뢰도를 스캔합니다.
+    지정된 파일(텍스트, 이미지, 비디오, 오디오) 또는 웹사이트 URL의 변조 신뢰도를 스캔합니다.
     """
-    file_ext = target_path.split(".")[-1].lower()
+    is_url = target_path.startswith("http://") or target_path.startswith("https://")
+    if not is_url and not os.path.exists(target_path):
+        console.print(f"[bold red]에러:[/bold red] 파일 또는 경로가 존재하지 않습니다: {target_path}")
+        raise click.BadParameter(f"Path '{target_path}' does not exist.")
+        
+    if is_url:
+        file_ext = "url"
+    else:
+        file_ext = target_path.split(".")[-1].lower()
     
     with Progress(
         SpinnerColumn(),
@@ -34,7 +43,10 @@ def scan(target_path: str, config: str, format: str, threshold: float):
         progress.add_task(description=f"스캔 중: {target_path}...", total=None)
         
         try:
-            if file_ext in ["txt", "md"]:
+            if is_url:
+                content = fetch_url_text(target_path)
+                result = detect_text(content)
+            elif file_ext in ["txt", "md"]:
                 with open(target_path, "r", encoding="utf-8") as f:
                     content = f.read()
                 result = detect_text(content)
@@ -58,7 +70,9 @@ def scan(target_path: str, config: str, format: str, threshold: float):
         from truthguard.explain.engine import ExplainEngine
         
         media_type = "unknown"
-        if file_ext in ["txt", "md"]:
+        if is_url:
+            media_type = "text"
+        elif file_ext in ["txt", "md"]:
             media_type = "text"
         elif file_ext in ["jpg", "jpeg", "png", "webp"]:
             media_type = "image"
@@ -78,6 +92,7 @@ def scan(target_path: str, config: str, format: str, threshold: float):
             
         explain_report = ExplainEngine.format_explanations(
             target_file=target_path,
+
             media_type=media_type,
             result=result,
             anomalies=anomalies
@@ -222,7 +237,7 @@ def web():
         raise click.ClickException(f"Failed to start React Dashboard: {str(e)}")
 
 @main.command(name="cli")
-@click.argument("target_path", type=click.Path(exists=True))
+@click.argument("target_path")
 @click.option("-c", "--config", type=click.Path(), help="설정 JSON 파일 경로")
 @click.option("-f", "--format", type=click.Choice(["text", "json", "table"]), default="text", help="출력 형식")
 @click.option("--threshold", type=float, default=0.5, help="변조 위험 판정 임계점")

@@ -116,8 +116,19 @@ class TestTruthGuardCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         mock_mcp_main.assert_called_once()
 
+    @unittest.mock.patch("truthguard.cli.main.fetch_url_text")
+    def test_cli_scan_url_success(self, mock_fetch):
+        # URL 입력 시 웹페이지 텍스트를 크롤링하여 스캔하는 흐름 검증
+        mock_fetch.return_value = "이것은 정상적인 공인 뉴스 기사 내용입니다. 출처는 https://news.or.kr 입니다."
+        result = self.runner.invoke(scan, ["https://example.com/news/123"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("대상 파일", result.output)
+        self.assertIn("정상 콘텐츠", result.output)
+        mock_fetch.assert_called_once_with("https://example.com/news/123")
+
 if __name__ == "__main__":
     unittest.main()
+
 
 
 
