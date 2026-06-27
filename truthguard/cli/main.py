@@ -233,7 +233,26 @@ def cli(ctx, target_path: str, config: str, format: str, threshold: float):
     """
     ctx.forward(scan)
 
+@main.command(name="mcp")
+def mcp():
+    """
+    Model Context Protocol(MCP) 표준 Stdio 서버를 시작합니다.
+    """
+    import sys
+    try:
+        # 프로젝트 루트 경로를 sys.path에 추가하여 truthguard_mcp를 직접 임포트
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+            
+        from truthguard_mcp import main as run_mcp
+        run_mcp()
+    except Exception as e:
+        console.print(f"[bold red]MCP 서버 실행 실패:[/bold red] {str(e)}")
+        raise click.ClickException(f"Failed to start MCP server: {str(e)}")
+
 if __name__ == "__main__":
     main()
+
 
 
