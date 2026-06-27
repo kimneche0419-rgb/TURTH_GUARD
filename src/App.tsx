@@ -180,12 +180,12 @@ export default function App() {
           AI 가짜뉴스, 딥페이크 변조 미디어 및 오디오 분석 종합 대시보드
         </p>
         <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-          <label style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>API Key:</label>
+          <label style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>API Key (옵션):</label>
           <input 
             type="password" 
             value={apiKey} 
             onChange={handleApiKeyChange}
-            placeholder="인증용 API Key 입력 (X-API-Key)" 
+            placeholder="서버 보안 설정 시에만 입력 (기본값: 불필요)" 
             style={{
               backgroundColor: '#1e293b',
               border: '1px solid #334155',
