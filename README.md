@@ -42,15 +42,35 @@ TruthGuard SDK는 고도화된 미디어 분석 파이프라인을 표준화된 
 
 TruthGuard SDK 및 대시보드를 신속하게 실행하는 방법입니다.
 
-### 4.1 의존성 설치 및 환경 설정
-가상환경(`.venv`)이 준비되어 있는 상태에서 아래 명령어로 패키지를 개발자 모드로 로컬 설치하고 프론트엔드 라이브러리를 설치합니다:
+### 4.1 설치 및 환경 설정 (Installation & Setup)
+
+프로젝트 저장소를 로컬에 복제하고 필요한 백엔드(Python) 및 프론트엔드(Node.js) 의존성을 구성합니다:
+
+**Step 1. 저장소 복제 및 디렉터리 이동**
 ```bash
-# 파이썬 의존성 및 패키지 등록
+git clone https://github.com/kimneche0419-rgb/TURTH_GUARD.git
+cd TURTH_GUARD
+```
+
+**Step 2. 파이썬 가상환경 생성**
+```bash
+python -m venv .venv
+```
+
+**Step 3. 백엔드 의존성 및 패키지 개발자 모드 설치**
+```bash
+# Windows
 .venv\Scripts\pip install -e .
 
-# 프론트엔드 의존성 설치
+# macOS / Linux
+.venv/bin/pip install -e .
+```
+
+**Step 4. 프론트엔드 대시보드 라이브러리 설치**
+```bash
 npm install
 ```
+
 
 ### 4.2 기본 환경 초기화
 작업 공간 내에 설정 파일(`truthguard.json`)과 미디어 수집 폴더(`uploads/`)를 준비합니다:
