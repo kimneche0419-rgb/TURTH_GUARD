@@ -42,7 +42,9 @@ interface ScanResult {
 }
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState<'file' | 'url'>('file');
   const [file, setFile] = useState<File | null>(null);
+  const [url, setUrl] = useState('');
   const [transcript, setTranscript] = useState('');
   const [result, setResult] = useState<ScanResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -83,30 +85,43 @@ export default function App() {
   };
 
   const startScan = async () => {
-    if (!file) return;
+    if (activeTab === 'file' && !file) return;
+    if (activeTab === 'url' && !url.trim()) return;
+    
     setLoading(true);
     setResult(null);
-
-    const formData = new FormData();
-    formData.append('file', file);
-    if (transcript) {
-      formData.append('transcript', transcript);
-    }
 
     try {
       const headers: Record<string, string> = {};
       if (apiKey.trim()) {
         headers['X-API-Key'] = apiKey.trim();
       }
-      const response = await axios.post<ScanResult>(
-        'http://localhost:8000/api/v1/scan/media', 
-        formData,
-        { headers }
-      );
-      setResult(response.data);
+
+      if (activeTab === 'file') {
+        const formData = new FormData();
+        formData.append('file', file!);
+        if (transcript) {
+          formData.append('transcript', transcript);
+        }
+        const response = await axios.post<ScanResult>(
+          'http://localhost:8000/api/v1/scan/media', 
+          formData,
+          { headers }
+        );
+        setResult(response.data);
+      } else {
+        const response = await axios.post<ScanResult>(
+          'http://localhost:8000/api/v1/scan/url', 
+          { url: url.trim() },
+          { headers }
+        );
+        setResult(response.data);
+      }
     } catch (err: any) {
       if (err.response && err.response.status === 401) {
         alert('인증 실패: 유효하지 않은 API Key이거나 키가 입력되지 않았습니다.');
+      } else if (err.response && err.response.status === 400 && err.response.data?.detail) {
+        alert(`분석 실패: ${err.response.data.detail}`);
       } else {
         alert('분석을 시작하지 못했습니다. 백엔드 FastAPI 서버가 기동 중인지 확인하십시오.');
       }
@@ -118,6 +133,7 @@ export default function App() {
   const resetForm = () => {
     setFile(null);
     setTranscript('');
+    setUrl('');
     setResult(null);
   };
 
@@ -191,7 +207,7 @@ export default function App() {
           <div style={{
             backgroundColor: '#1e293b',
             borderRadius: '16px',
-            border: '1px style #334155',
+            border: '1px solid #334155',
             padding: '32px',
             boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
             transition: 'all 0.2s ease-in-out'
@@ -200,75 +216,141 @@ export default function App() {
               <UploadCloud size={22} className="text-sky-400" /> 분석 대상 미디어 등록
             </h2>
 
-            <div 
-              onDragEnter={handleDrag}
-              onDragOver={handleDrag}
-              onDragLeave={handleDrag}
-              onDrop={handleDrop}
-              style={{
-                border: `2px dashed ${dragActive ? '#38bdf8' : '#475569'}`,
-                backgroundColor: dragActive ? 'rgba(56, 189, 248, 0.05)' : '#0f172a',
-                borderRadius: '12px',
-                padding: '40px 20px',
-                textAlign: 'center',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-              onClick={() => document.getElementById('file-input')?.click()}
-            >
-              <input 
-                id="file-input"
-                type="file" 
-                onChange={handleFileChange} 
-                style={{ display: 'none' }}
-                accept=".txt,.md,.jpg,.jpeg,.png,.webp,.mp4,.avi,.mov,.mkv,.wav,.mp3,.m4a,.flac"
-              />
-              <UploadCloud size={48} style={{ color: '#64748b', marginBottom: '16px' }} />
-              {file ? (
-                <div>
-                  <p style={{ fontSize: '16px', fontWeight: 600, color: '#f8fafc', margin: '0 0 4px 0' }}>{file.name}</p>
-                  <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                </div>
-              ) : (
-                <div>
-                  <p style={{ fontSize: '15px', fontWeight: 600, color: '#cbd5e1', margin: '0 0 8px 0' }}>
-                    파일을 드래그하여 드롭하거나 클릭하여 선택하세요
-                  </p>
-                  <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
-                    TXT, MD, JPG, PNG, WEBP, MP4, WAV, MP3 등 지원
-                  </p>
-                </div>
-              )}
+            {/* Tab Navigation */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid #334155', paddingBottom: '12px' }}>
+              <button 
+                onClick={() => setActiveTab('file')}
+                style={{
+                  backgroundColor: activeTab === 'file' ? '#38bdf8' : 'transparent',
+                  color: activeTab === 'file' ? '#0f172a' : '#94a3b8',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 16px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  transition: 'all 0.2s'
+                }}
+              >
+                파일 업로드
+              </button>
+              <button 
+                onClick={() => setActiveTab('url')}
+                style={{
+                  backgroundColor: activeTab === 'url' ? '#38bdf8' : 'transparent',
+                  color: activeTab === 'url' ? '#0f172a' : '#94a3b8',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 16px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  transition: 'all 0.2s'
+                }}
+              >
+                웹사이트 URL 분석
+              </button>
             </div>
 
-            {/* Audio Transcript Option */}
-            {file && (file.type.startsWith('audio/') || file.name.endsWith('.wav') || file.name.endsWith('.mp3')) && (
-              <div style={{ marginTop: '20px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px' }}>
-                  오디오 대화 텍스트 (보이스피싱 분석용)
-                </label>
-                <textarea 
-                  value={transcript}
-                  onChange={(e) => setTranscript(e.target.value)}
-                  placeholder="예: 긴급 상황이니 빠르게 계좌번호로 송금 이체해 주세요."
+            {activeTab === 'file' ? (
+              <div>
+                <div 
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
                   style={{
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    height: '80px',
-                    borderRadius: '8px',
+                    border: `2px dashed ${dragActive ? '#38bdf8' : '#475569'}`,
+                    backgroundColor: dragActive ? 'rgba(56, 189, 248, 0.05)' : '#0f172a',
+                    borderRadius: '12px',
+                    padding: '40px 20px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onClick={() => document.getElementById('file-input')?.click()}
+                >
+                  <input 
+                    id="file-input"
+                    type="file" 
+                    onChange={handleFileChange} 
+                    style={{ display: 'none' }}
+                    accept=".txt,.md,.jpg,.jpeg,.png,.webp,.mp4,.avi,.mov,.mkv,.wav,.mp3,.m4a,.flac"
+                  />
+                  <UploadCloud size={48} style={{ color: '#64748b', marginBottom: '16px' }} />
+                  {file ? (
+                    <div>
+                      <p style={{ fontSize: '16px', fontWeight: 600, color: '#f8fafc', margin: '0 0 4px 0' }}>{file.name}</p>
+                      <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p style={{ fontSize: '15px', fontWeight: 600, color: '#cbd5e1', margin: '0 0 8px 0' }}>
+                        파일을 드래그하여 드롭하거나 클릭하여 선택하세요
+                      </p>
+                      <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+                        TXT, MD, JPG, PNG, WEBP, MP4, WAV, MP3 등 지원
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Audio Transcript Option */}
+                {file && (file.type.startsWith('audio/') || file.name.endsWith('.wav') || file.name.endsWith('.mp3')) && (
+                  <div style={{ marginTop: '20px' }}>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px' }}>
+                      오디오 대화 텍스트 (보이스피싱 분석용)
+                    </label>
+                    <textarea 
+                      value={transcript}
+                      onChange={(e) => setTranscript(e.target.value)}
+                      placeholder="예: 긴급 상황이니 빠르게 계좌번호로 송금 이체해 주세요."
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        height: '80px',
+                        borderRadius: '8px',
+                        backgroundColor: '#0f172a',
+                        border: '1px solid #334155',
+                        color: '#f8fafc',
+                        padding: '12px',
+                        fontSize: '14px',
+                        resize: 'none',
+                        outline: 'none'
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '14px', fontWeight: 600, color: '#cbd5e1' }}>
+                  뉴스 기사 또는 웹페이지 주소(URL)
+                </label>
+                <input 
+                  type="text" 
+                  value={url} 
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://news.example.com/article" 
+                  style={{
                     backgroundColor: '#0f172a',
                     border: '1px solid #334155',
-                    color: '#f8fafc',
+                    borderRadius: '8px',
                     padding: '12px',
                     fontSize: '14px',
-                    resize: 'none',
-                    outline: 'none'
+                    color: '#f8fafc',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    width: '100%'
                   }}
                 />
+                <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>
+                  입력된 웹주소의 HTML 문서에서 기사 본문 텍스트만 자동으로 크롤링하여 TruthGuard 팩트체크 엔진으로 신뢰도를 즉시 진단합니다.
+                </p>
               </div>
             )}
 
-            {file && (
+            {((activeTab === 'file' && file) || (activeTab === 'url' && url.trim())) && (
               <button
                 onClick={startScan}
                 disabled={loading}

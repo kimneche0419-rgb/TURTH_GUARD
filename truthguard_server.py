@@ -5,10 +5,12 @@ import json
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Security, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
+from pydantic import BaseModel
 from typing import Optional
 
 import truthguard
 from truthguard.explain.engine import ExplainEngine
+from truthguard.utils import fetch_url_text
 
 app = FastAPI(
     title="TruthGuard REST API Gateway",
@@ -131,4 +133,50 @@ async def scan_media(
         # 임시 보관 파일 정리
         if os.path.exists(temp_path):
             os.remove(temp_path)
+
+class ScanURLPayload(BaseModel):
+    url: str
+
+@app.post("/api/v1/scan/url")
+async def scan_url(
+    payload: ScanURLPayload,
+    _ = Depends(verify_api_key)
+):
+    """
+    지정된 URL 주소의 웹페이지 본문 텍스트를 크롤링하여 TruthGuard로 스캐닝한 후 XAI JSON 결과를 반환합니다.
+    """
+    url = str(payload.url)
+    try:
+        # 1. URL로부터 본문 텍스트 추출
+        content = fetch_url_text(url)
+        if not content.strip():
+            raise HTTPException(status_code=400, detail="웹페이지에서 텍스트 콘텐츠를 읽어올 수 없습니다.")
+            
+        # 2. 텍스트 분석 실행
+        result = truthguard.detect_text(content)
+        
+        # 3. XAI 레포트 포맷팅
+        anomalies = []
+        for reason in result.reasons:
+            anomalies.append({
+                "code": "TEXT_ANOMALY_DETECTED",
+                "severity": "CRITICAL" if result.risk_level in ["HIGH", "CRITICAL"] else "WARNING",
+                "message": reason,
+                "location": "global"
+            })
+
+        explain_report = ExplainEngine.format_explanations(
+            target_file=url,
+            media_type="text",
+            result=result,
+            anomalies=anomalies
+        )
+        
+        return explain_report
+        
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"웹사이트 분석 실패: {str(e)}")
+
 
