@@ -60,14 +60,15 @@ npm install
 ### 4.3 개별 및 통합 실행 명령어
 가상환경 활성화 없이 루트 경로에서 즉각 구동할 수 있는 단축 명령어를 제공합니다:
 
-* **백엔드 + 프론트엔드 통합 실행 (추천)**:
-  * `.\tg dev` (PowerShell) 또는 `tg dev` (CMD)
-* **FastAPI 백엔드 API만 실행**:
-  * `.\tg api` (PowerShell) 또는 `tg api` (CMD)
-* **React 대시보드만 실행**:
-  * `.\tg web` (PowerShell) 또는 `tg web` (CMD)
-* **CLI 파일 신뢰성 스캔**:
-  * `.\tg cli <파일경로>` (PowerShell) 또는 `tg cli <파일경로>` (CMD)
+| 명령어 (CMD) | 명령어 (PowerShell) | 설명 | 주요 특징 및 옵션 |
+|:---|:---|:---|:---|
+| `tg init` | `.\tg init` | **프로젝트 환경 초기화** | `truthguard.json` 및 `uploads/` 폴더 생성. 기존 설정 초기화 시 `--force` 적용 |
+| `tg dev` | `.\tg dev` | **통합 개발 서버 실행** | 백엔드 API(8000) 및 프론트엔드 대시보드(5173)를 각각 다른 새 창으로 동시 구동 (추천) |
+| `tg api` | `.\tg api` | **백엔드 API 서버 단독 실행** | FastAPI 서버를 현재 세션에서 실행 (`--port <포트>`, `--host <호스트>` 옵션 지원) |
+| `tg web` | `.\tg web` | **대시보드 웹 서버 단독 실행** | 프론트엔드 대시보드를 현재 세션에서 단독 실행 |
+| `tg cli <파일>` | `.\tg cli <파일>` | **CLI 미디어 파일 분석 (단축)** | `tg scan` 명령어의 단축 별칭으로 터미널에서 신속하게 타겟 스캔 |
+| `tg scan <파일>` | `.\tg scan <파일>` | **CLI 미디어 파일 분석** | 파일을 분석하고 보고서를 출력합니다. (`-f json`, `-f table` 및 `--threshold` 지원) |
+
 
 ---
 
