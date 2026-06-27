@@ -61,6 +61,14 @@ class TestTruthGuardCLI(unittest.TestCase):
             self.assertTrue(os.path.exists("truthguard.json"))
             self.assertTrue(os.path.exists("uploads"))
             
+            # truthguard.json 내부에 api_key 속성이 초기값("")으로 존재하는지 확인
+            import json
+            with open("truthguard.json", "r", encoding="utf-8") as f:
+                config_data = json.load(f)
+            self.assertIn("api_key", config_data)
+            self.assertEqual(config_data["api_key"], "")
+
+            
             # 2. 두 번째 실행: 덮어쓰기 옵션(force) 없이 실행 시 예외 발생 검증
             result2 = self.runner.invoke(init)
             self.assertNotEqual(result2.exit_code, 0)

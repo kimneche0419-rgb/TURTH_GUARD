@@ -146,8 +146,10 @@ def init(force: bool):
         "media_directories": {
             "uploads": "uploads"
         },
-        "explain_format": "text"
+        "explain_format": "text",
+        "api_key": ""
     }
+
     
     try:
         with open(config_path, "w", encoding="utf-8") as f:
