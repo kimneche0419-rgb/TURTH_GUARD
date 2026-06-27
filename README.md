@@ -57,13 +57,13 @@ cd TURTH_GUARD
 python -m venv .venv
 ```
 
-**Step 3. 백엔드 의존성 및 패키지 개발자 모드 설치**
+**Step 3. 백엔드 의존성 및 패키지 개발자 모드 설치 (기본/AI 텍스트 분석 포함)**
 ```bash
 # Windows
-.venv\Scripts\pip install -e .
+.venv\Scripts\pip install -e .[text]
 
 # macOS / Linux
-.venv/bin/pip install -e .
+.venv/bin/pip install -e .[text]
 ```
 
 **Step 4. 프론트엔드 대시보드 라이브러리 설치**
