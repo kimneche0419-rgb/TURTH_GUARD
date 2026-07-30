@@ -1,6 +1,6 @@
 # TruthGuard SDK: AI 콘텐츠 신뢰성 평가 오픈소스 프레임워크
 
-[![프로젝트 파이프라인 및 분석 보기](https://img.shields.io/badge/%F0%9F%93%8A%20%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8%20%ED%8C%8C%EC%9D%B4%ED%94%84%EB%9D%BC%EC%9D%B8%20%EB%B0%8F%20%EB%B6%84%EC%84%9D%20%EB%B3%B4%EA%B8%B0-0052FF?style=for-the-badge&logo=markdown&logoColor=white)](./PROJECT_PIPELINE.md)
+[![프로젝트 파이프라인 및 분석 보기](https://img.shields.io/badge/%F0%9F%93%8A%20%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8%20%ED%8C%8C%EC%9D%B4%ED%94%84%EB%9D%BC%EC%9D%B8%20%EB%B0%8F%20%EB%B6%84%EC%84%9D%20%EB%B3%B4%EA%B8%B0-0052FF?style=for-the-badge&logo=markdown&logoColor=white)](./PROJECT_PIPELINE.md) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](./LICENSE)
 
 > **TruthGuard SDK**는 생성형 AI 시대에 급증하는 허위정보, 가짜뉴스, 딥페이크, AI 생성 콘텐츠를 탐지하고 그 신뢰성을 정량적으로 평가할 수 있는 개발자 지향형 오픈소스 프레임워크입니다. 본 문서는 시스템 아키텍처, 상세 기능 사양, 코드 레벨의 API 활용 예시를 포함한 프로젝트 명세서입니다.
 
