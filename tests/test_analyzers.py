@@ -5,12 +5,12 @@ import unittest
 from PIL import Image
 import numpy as np
 
-from truthguard.text.analyzer import TextAnalyzer
-from truthguard.image.analyzer import ImageAnalyzer
-from truthguard.video.analyzer import VideoAnalyzer
-from truthguard.audio.analyzer import AudioAnalyzer
+from truthhistory.text.analyzer import TextAnalyzer
+from truthhistory.image.analyzer import ImageAnalyzer
+from truthhistory.video.analyzer import VideoAnalyzer
+from truthhistory.audio.analyzer import AudioAnalyzer
 
-class TestTruthGuardAnalyzers(unittest.TestCase):
+class TestTruthHistoryAnalyzers(unittest.TestCase):
     
     def setUp(self):
         # 공통 임시 디렉터리 및 임시 파일 설정

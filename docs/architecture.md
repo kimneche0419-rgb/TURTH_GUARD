@@ -1,16 +1,16 @@
-# TruthGuard SDK: 시스템 아키텍처 및 공통 설계 명세
+# Truth History SDK: 시스템 아키텍처 및 공통 설계 명세
 
-본 문서는 TruthGuard SDK의 전체적인 파이프라인 데이터 흐름, 지연 로딩(Lazy Loading)을 응용한 모듈러 플러그인 아키텍처 설계, 그리고 공통 추상 클래스 설계의 핵심을 다룹니다.
+생성형 AI의 보편화는 (a) 한국 역사 왜곡·할루시네이션—그럴듯하지만 허위인 역사 정보의 대량 생성—과 (b) 멀티미디어 위변조—역사 사진 합성, 딥페이크 페이스 스왑, AI 복제 음성—이라는 새로운 리스크를 야기한다. Truth History SDK는 텍스트 고증 검증과 시청각(이미지/영상/오디오) 교차 검증을 단일 SDK로 통합하여 이 리스크에 대응하며, 본 문서는 통합 파이프라인의 데이터 흐름, 지연 로딩(Lazy Loading)을 응용한 모듈러 플러그인 아키텍처 설계, 그리고 공통 추상 클래스 설계의 핵심을 다룬다.
 
 ---
 
 ## 1. 하이레벨 아키텍처 및 데이터 흐름
 
-TruthGuard는 파일 및 스트림 콘텐츠 분석을 위한 다중 분석 모듈(Text, Image, Video, Audio)을 제공하며, 각 모듈은 동일한 인터페이스 규격을 바탕으로 병렬적으로 구동될 수 있습니다.
+Truth History는 한국 역사 콘텐츠의 신뢰성을 교차 검증하기 위한 4대 탐지 모듈—텍스트 고증 검증(Text), ELA 이미지 합성 탐지(Image), 딥페이크 페이스 스왑 탐지(Video), AI 복제 음성 탐지(Audio)—을 제공하며, 각 모듈은 동일한 인터페이스 규격을 바탕으로 병렬적으로 구동된다. 지연 로딩 기반의 모듈러 구조와 경량 로컬 추론 + 외부 API 연동 혼합 설계를 통해 뉴스·교육 시스템 등 어떤 인프라에서도 자체 검증 레이어를 구축할 수 있다.
 
 ```mermaid
 graph TD
-    User([클라이언트 코드]) -->|스캔 요청: 파일/텍스트| TG[TruthGuard Engine]
+    User([클라이언트 코드]) -->|스캔 요청: 파일/텍스트| TG[Truth History Engine]
     TG --> Loader{모듈 및 백엔드 판별}
     
     Loader -->|의존성 지연 로드| TA[Text Analyzer]
@@ -51,13 +51,13 @@ class LazyModuleImporter:
             print(
                 f"[Error] '{module_name}' 패키지가 누락되었습니다. "
                 f"이 기능을 사용하려면 다음 명령어로 추가 패키지를 설치하십시오:\n"
-                f"pip install truthguard-sdk[{extra_group}]",
+                f"pip install truth-history-sdk[{extra_group}]",
                 file=sys.stderr
             )
             raise ImportError(f"Missing dependency for extra group: {extra_group}")
 ```
 
-분석기 모듈 내부 사용 예시 (`truthguard/image/analyzer.py`):
+분석기 모듈 내부 사용 예시 (`truthhistory/image/analyzer.py`):
 ```python
 class ImageAnalyzer(BaseAnalyzer):
     def initialize_model(self) -> None:
@@ -157,6 +157,6 @@ $$Score_{credibility} = 1.0 - \sum_{i=1}^{n} (w_i \times Metric_i)$$
 ### 4.2 기본 가중치 설정 규격
 | 세부 분석 모듈 | 지표명 | 기본 가중치 ($w_i$) | 위험 판정 임계점 |
 | :--- | :--- | :--- | :--- |
-| **텍스트** | AI 생성 확률 / 출처 미비도 | 0.4 / 0.6 | 점수 < 0.5 이면 `is_manipulated=True` |
-| **이미지** | ELA 왜곡 수준 / 얼굴 딥페이크 지표 | 0.5 / 0.5 | 점수 < 0.6 이면 `is_manipulated=True` |
+| **텍스트** | AI 생성 확률 / 역사 정합성 | 0.4 / 0.6 | 점수 < 0.5 이면 `is_manipulated=True` |
+| **이미지** | ELA 왜곡 / 딥페이크 | 0.5 / 0.5 | 점수 < 0.6 이면 `is_manipulated=True` |
 | **비디오** | 프레임 일관성 / 랜드마크 Jitter | 0.4 / 0.6 | 점수 < 0.65 이면 `is_manipulated=True` |

@@ -50,13 +50,13 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [apiKey, setApiKey] = useState(() => {
-    return localStorage.getItem('tg_api_key') || '';
+    return localStorage.getItem('th_api_key') || '';
   });
 
   const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setApiKey(value);
-    localStorage.setItem('tg_api_key', value);
+    localStorage.setItem('th_api_key', value);
   };
 
   const handleDrag = (e: React.DragEvent) => {
@@ -173,11 +173,11 @@ export default function App() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '8px' }}>
           <ShieldCheck size={40} style={{ color: '#38bdf8', filter: 'drop-shadow(0 0 10px rgba(56, 189, 248, 0.4))' }} />
           <h1 style={{ fontSize: '32px', fontWeight: 800, letterSpacing: '-0.025em', margin: 0, background: 'linear-gradient(to right, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            TruthGuard SDK
+            Truth History SDK
           </h1>
         </div>
         <p style={{ color: '#94a3b8', fontSize: '15px', margin: 0 }}>
-          AI 가짜뉴스, 딥페이크 변조 미디어 및 오디오 분석 종합 대시보드
+          한국사 왜곡·할루시네이션 및 멀티미디어(이미지·영상·음성) 위변조 통합 탐지 대시보드
         </p>
         <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
           <label style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>API Key (옵션):</label>
@@ -299,12 +299,12 @@ export default function App() {
                 {file && (file.type.startsWith('audio/') || file.name.endsWith('.wav') || file.name.endsWith('.mp3')) && (
                   <div style={{ marginTop: '20px' }}>
                     <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px' }}>
-                      오디오 대화 텍스트 (보이스피싱 분석용)
+                      오디오 전사 텍스트 (AI 복제 음성·사칭 탐지용)
                     </label>
                     <textarea 
                       value={transcript}
                       onChange={(e) => setTranscript(e.target.value)}
-                      placeholder="예: 긴급 상황이니 빠르게 계좌번호로 송금 이체해 주세요."
+                      placeholder="예: 특정 인물을 사칭한 AI 복제 음성이 금전을 요구하거나 허위 사실을 언급하는 문장"
                       style={{
                         width: '100%',
                         boxSizing: 'border-box',
@@ -345,7 +345,7 @@ export default function App() {
                   }}
                 />
                 <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>
-                  입력된 웹주소의 HTML 문서에서 기사 본문 텍스트만 자동으로 크롤링하여 TruthGuard 팩트체크 엔진으로 신뢰도를 즉시 진단합니다.
+                  입력된 웹주소의 HTML 문서에서 기사 본문 텍스트만 자동으로 크롤링하여 Truth History 고증 검증 엔진으로 역사 왜곡·할루시네이션 여부를 즉시 진단합니다.
                 </p>
               </div>
             )}

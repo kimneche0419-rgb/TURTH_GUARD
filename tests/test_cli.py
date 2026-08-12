@@ -6,9 +6,9 @@ import unittest.mock
 from click.testing import CliRunner
 from PIL import Image
 
-from truthguard.cli.main import scan, init, dev, api, web, cli, mcp
+from truthhistory.cli.main import scan, init, dev, api, web, cli, mcp
 
-class TestTruthGuardCLI(unittest.TestCase):
+class TestTruthHistoryCLI(unittest.TestCase):
     def setUp(self):
         self.runner = CliRunner()
         self.test_dir = tempfile.TemporaryDirectory()
@@ -50,7 +50,7 @@ class TestTruthGuardCLI(unittest.TestCase):
         # 테이블 포맷 출력 검증
         result = self.runner.invoke(scan, [self.image_path, "-f", "table"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("TruthGuard Scan Summary", result.output)
+        self.assertIn("Truth History Scan Summary", result.output)
 
     def test_cli_init_command_creates_config(self):
         # 격리된 임시 파일시스템 내에서 테스트 실행
@@ -58,12 +58,12 @@ class TestTruthGuardCLI(unittest.TestCase):
             # 1. 첫 실행: 설정 파일 및 uploads 폴더가 정상 생성되는지 검증
             result = self.runner.invoke(init)
             self.assertEqual(result.exit_code, 0)
-            self.assertTrue(os.path.exists("truthguard.json"))
+            self.assertTrue(os.path.exists("truthhistory.json"))
             self.assertTrue(os.path.exists("uploads"))
             
-            # truthguard.json 내부에 api_key 속성이 초기값("")으로 존재하는지 확인
+            # truthhistory.json 내부에 api_key 속성이 초기값("")으로 존재하는지 확인
             import json
-            with open("truthguard.json", "r", encoding="utf-8") as f:
+            with open("truthhistory.json", "r", encoding="utf-8") as f:
                 config_data = json.load(f)
             self.assertIn("api_key", config_data)
             self.assertEqual(config_data["api_key"], "")
@@ -83,7 +83,7 @@ class TestTruthGuardCLI(unittest.TestCase):
         # dev 명령어 실행 시 uvicorn 및 npm run dev 서브프로세스가 기동되는지 검증
         result = self.runner.invoke(dev)
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("Starting TruthGuard Development Servers", result.output)
+        self.assertIn("Starting Truth History Development Servers", result.output)
         self.assertEqual(mock_popen.call_count, 2)
 
     @unittest.mock.patch("subprocess.call")
@@ -91,7 +91,7 @@ class TestTruthGuardCLI(unittest.TestCase):
         # api 명령어 실행 시 uvicorn 서브프로세스가 호출되는지 검증
         result = self.runner.invoke(api, ["--port", "8001"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("Starting TruthGuard API Server on http://127.0.0.1:8001", result.output)
+        self.assertIn("Starting Truth History API Server on http://127.0.0.1:8001", result.output)
         mock_call.assert_called_once()
 
     @unittest.mock.patch("subprocess.call")
@@ -99,7 +99,7 @@ class TestTruthGuardCLI(unittest.TestCase):
         # web 명령어 실행 시 npm run dev 서브프로세스가 호출되는지 검증
         result = self.runner.invoke(web)
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("Starting TruthGuard React Dashboard", result.output)
+        self.assertIn("Starting Truth History React Dashboard", result.output)
         mock_call.assert_called_once()
 
     def test_cli_alias_command_scans_text(self):
@@ -109,14 +109,14 @@ class TestTruthGuardCLI(unittest.TestCase):
         self.assertIn("대상 파일", result.output)
         self.assertIn("정상 콘텐츠", result.output)
 
-    @unittest.mock.patch("truthguard_mcp.main")
+    @unittest.mock.patch("truthhistory_mcp.main")
     def test_cli_mcp_command_starts_mcp(self, mock_mcp_main):
         # mcp 명령어 실행 시 Stdio MCP 서버 루틴이 가동되는지 검증
         result = self.runner.invoke(mcp)
         self.assertEqual(result.exit_code, 0)
         mock_mcp_main.assert_called_once()
 
-    @unittest.mock.patch("truthguard.cli.main.fetch_url_text")
+    @unittest.mock.patch("truthhistory.cli.main.fetch_url_text")
     def test_cli_scan_url_success(self, mock_fetch):
         # URL 입력 시 웹페이지 텍스트를 크롤링하여 스캔하는 흐름 검증
         mock_fetch.return_value = "이것은 정상적인 공인 뉴스 기사 내용입니다. 출처는 https://news.or.kr 입니다."

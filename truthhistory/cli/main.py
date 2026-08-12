@@ -1,0 +1,273 @@
+# -*- coding: utf-8 -*-
+import os
+import json
+import click
+from rich.console import Console
+from rich.table import Table
+from rich.progress import Progress, SpinnerColumn, TextColumn
+
+from truthhistory import detect_text, detect_image, detect_video, detect_audio
+from truthhistory.utils import fetch_url_text
+
+console = Console()
+
+@click.group()
+def main():
+    """Truth History SDK: 한국사 왜곡·멀티미디어 위변조 통합 탐지 오픈소스 프레임워크 CLI"""
+    pass
+
+@main.command(name="scan")
+@click.argument("target_path")
+@click.option("-c", "--config", type=click.Path(), help="설정 JSON 파일 경로")
+@click.option("-f", "--format", type=click.Choice(["text", "json", "table"]), default="text", help="출력 형식")
+@click.option("--threshold", type=float, default=0.5, help="변조 위험 판정 임계점")
+def scan(target_path: str, config: str, format: str, threshold: float):
+    """
+    지정된 파일(텍스트, 이미지, 비디오, 오디오) 또는 웹사이트 URL의 변조 신뢰도를 스캔합니다.
+    """
+    is_url = target_path.startswith("http://") or target_path.startswith("https://")
+    if not is_url and not os.path.exists(target_path):
+        console.print(f"[bold red]에러:[/bold red] 파일 또는 경로가 존재하지 않습니다: {target_path}")
+        raise click.BadParameter(f"Path '{target_path}' does not exist.")
+        
+    if is_url:
+        file_ext = "url"
+    else:
+        file_ext = target_path.split(".")[-1].lower()
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True
+    ) as progress:
+        progress.add_task(description=f"스캔 중: {target_path}...", total=None)
+        
+        try:
+            if is_url:
+                content = fetch_url_text(target_path)
+                result = detect_text(content)
+            elif file_ext in ["txt", "md"]:
+                with open(target_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                result = detect_text(content)
+            elif file_ext in ["jpg", "jpeg", "png", "webp"]:
+                result = detect_image(target_path)
+            elif file_ext in ["mp4", "avi", "mov", "mkv"]:
+                result = detect_video(target_path)
+            elif file_ext in ["wav", "mp3", "m4a", "flac"]:
+                result = detect_audio(target_path)
+            else:
+                console.print(f"[bold red]에러:[/bold red] 지원하지 않는 파일 형식입니다 (.{file_ext})")
+                raise click.ClickException("Unsupported file format")
+        except Exception as e:
+            console.print(f"[bold red]런타임 에러:[/bold red] {str(e)}")
+            # 에러 발생 시 Exit Code 2 (사용자/포맷/파일 에러)
+            import sys
+            sys.exit(2)
+
+    # 포맷별 결과 출력
+    if format == "json":
+        from truthhistory.explain.engine import ExplainEngine
+        
+        media_type = "unknown"
+        if is_url:
+            media_type = "text"
+        elif file_ext in ["txt", "md"]:
+            media_type = "text"
+        elif file_ext in ["jpg", "jpeg", "png", "webp"]:
+            media_type = "image"
+        elif file_ext in ["mp4", "avi", "mov", "mkv"]:
+            media_type = "video"
+        elif file_ext in ["wav", "mp3", "m4a", "flac"]:
+            media_type = "audio"
+            
+        anomalies = []
+        for reason in result.reasons:
+            anomalies.append({
+                "code": "MANIPULATION_DETECTED",
+                "severity": "CRITICAL" if result.risk_level in ["HIGH", "CRITICAL"] else "WARNING",
+                "message": reason,
+                "location": "global"
+            })
+            
+        explain_report = ExplainEngine.format_explanations(
+            target_file=target_path,
+
+            media_type=media_type,
+            result=result,
+            anomalies=anomalies
+        )
+        console.print_json(data=explain_report)
+        
+    elif format == "table":
+        table = Table(title="[bold green]Truth History Scan Summary[/bold green]")
+        table.add_column("Target File", style="cyan")
+        table.add_column("Credibility Score", style="magenta")
+        table.add_column("Risk Level", style="yellow")
+        table.add_column("Manipulated?", style="red")
+        
+        table.add_row(
+            os.path.basename(target_path),
+            f"{result.credibility_score:.2f}",
+            result.risk_level,
+            "YES" if result.is_manipulated else "NO"
+        )
+        console.print(table)
+        
+    else:  # 'text' 기본 모드
+        console.print("\n[bold]========== Truth History Scan Report ==========[/bold]")
+        console.print(f"대상 파일: [cyan]{target_path}[/cyan]")
+        console.print(f"종합 신뢰도: {result.credibility_score:.2f} ({result.risk_level} RISK)")
+        
+        if result.is_manipulated:
+            console.log("스캔 결과: [bold red]변조 및 허위 정보 의심[/bold red]")
+        else:
+            console.log("스캔 결과: [bold green]정상 콘텐츠[/bold green]")
+            
+        console.print("\n[bold]탐지 근거:[/bold]")
+        if result.reasons:
+            for reason in result.reasons:
+                console.print(f" - [yellow]{reason}[/yellow]")
+        else:
+            console.print(" - 특이사항 없음")
+
+    # 변조 판정 여부에 따른 프로세스 종료 코드 리턴 (CI/CD 자동화 연동용)
+    import sys
+    if result.is_manipulated:
+        sys.exit(1)
+    else:
+        sys.exit(0)
+
+@main.command(name="init")
+@click.option("-f", "--force", is_flag=True, help="기존 설정 파일이 있는 경우 덮어씁니다.")
+def init(force: bool):
+    """
+    Truth History 작업 환경 및 설정 파일을 초기화합니다.
+    """
+    config_path = "truthhistory.json"
+    
+    # 1. 기존 설정 확인
+    if os.path.exists(config_path) and not force:
+        console.print(f"[bold yellow]주의:[/bold yellow] 이미 `{config_path}` 파일이 존재합니다.")
+        console.print("덮어쓰려면 [bold cyan]--force[/bold cyan] 옵션을 사용하십시오.")
+        raise click.ClickException("Config file already exists")
+
+    # 2. uploads 디렉터리 생성
+    os.makedirs("uploads", exist_ok=True)
+    
+    # 3. 설정 데이터 작성
+    default_config = {
+        "threshold": 0.5,
+        "media_directories": {
+            "uploads": "uploads"
+        },
+        "explain_format": "text",
+        "api_key": ""
+    }
+
+    
+    try:
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(default_config, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        console.print(f"[bold red]설정 파일 저장 실패:[/bold red] {str(e)}")
+        raise click.ClickException(f"Failed to save config: {str(e)}")
+        
+    console.print("[bold green]Success:[/bold green] Truth History SDK 환경 초기화 완료!")
+    console.print(f" - 생성됨: [cyan]{config_path}[/cyan]")
+    console.print(" - 생성됨: [cyan]uploads/[/cyan] 디렉터리")
+    console.print("\n[bold]다음 단계:[/bold]")
+    console.print(" 1. `th scan <파일경로>` 명령어로 파일을 분석해보세요.")
+    console.print(" 2. `th dev` 명령어로 대시보드와 서버를 한 번에 기동하세요.")
+
+@main.command(name="dev")
+def dev():
+    """
+    백엔드 API 서버와 프론트엔드 대시보드를 동시에 실행합니다.
+    """
+    import subprocess
+    import sys
+    
+    console.print("[bold green]Starting Truth History Development Servers...[/bold green]")
+    try:
+        if sys.platform == "win32":
+            subprocess.Popen('start "Truth History Backend" cmd /c ".venv\\Scripts\\python.exe -m uvicorn truthhistory_server:app --reload --port 8000"', shell=True)
+            subprocess.Popen('start "Truth History Dashboard" cmd /c "npm run dev"', shell=True)
+        else:
+            subprocess.Popen('.venv/bin/uvicorn truthhistory_server:app --reload --port 8000', shell=True)
+            subprocess.Popen('npm run dev', shell=True)
+            
+        console.print("[bold green]Success:[/bold green] 두 서버가 새 터미널 창에서 정상적으로 기동되었습니다!")
+        console.print(" - Backend: [cyan]http://localhost:8000[/cyan]")
+        console.print(" - Dashboard: [cyan]http://localhost:5173[/cyan]")
+    except Exception as e:
+        console.print(f"[bold red]서버 기동 실패:[/bold red] {str(e)}")
+        raise click.ClickException(f"Failed to start servers: {str(e)}")
+
+@main.command(name="api")
+@click.option("--port", type=int, default=8000, help="서버 포트 번호")
+@click.option("--host", type=str, default="127.0.0.1", help="서버 호스트 주소")
+def api(port: int, host: str):
+    """
+    FastAPI 백엔드 API 서버를 시작합니다.
+    """
+    import subprocess
+    import sys
+    console.print(f"[bold green]Starting Truth History API Server on http://{host}:{port}...[/bold green]")
+    try:
+        cmd = f".venv\\Scripts\\python.exe -m uvicorn truthhistory_server:app --reload --port {port} --host {host}"
+        if sys.platform != "win32":
+            cmd = f".venv/bin/python -m uvicorn truthhistory_server:app --reload --port {port} --host {host}"
+        subprocess.call(cmd, shell=True)
+    except Exception as e:
+        console.print(f"[bold red]API 서버 기동 실패:[/bold red] {str(e)}")
+        raise click.ClickException(f"Failed to start API server: {str(e)}")
+
+@main.command(name="web")
+def web():
+    """
+    React 프론트엔드 대시보드를 시작합니다.
+    """
+    import subprocess
+    console.print("[bold green]Starting Truth History React Dashboard...[/bold green]")
+    try:
+        subprocess.call("npm run dev", shell=True)
+    except Exception as e:
+        console.print(f"[bold red]대시보드 기동 실패:[/bold red] {str(e)}")
+        raise click.ClickException(f"Failed to start React Dashboard: {str(e)}")
+
+@main.command(name="cli")
+@click.argument("target_path")
+@click.option("-c", "--config", type=click.Path(), help="설정 JSON 파일 경로")
+@click.option("-f", "--format", type=click.Choice(["text", "json", "table"]), default="text", help="출력 형식")
+@click.option("--threshold", type=float, default=0.5, help="변조 위험 판정 임계점")
+@click.pass_context
+def cli(ctx, target_path: str, config: str, format: str, threshold: float):
+    """
+    th scan과 동일하게 지정된 파일을 CLI에서 검증합니다.
+    """
+    ctx.forward(scan)
+
+@main.command(name="mcp")
+def mcp():
+    """
+    Model Context Protocol(MCP) 표준 Stdio 서버를 시작합니다.
+    """
+    import sys
+    try:
+        # 프로젝트 루트 경로를 sys.path에 추가하여 truthhistory_mcp를 직접 임포트
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+            
+        from truthhistory_mcp import main as run_mcp
+        run_mcp()
+    except Exception as e:
+        console.print(f"[bold red]MCP 서버 실행 실패:[/bold red] {str(e)}")
+        raise click.ClickException(f"Failed to start MCP server: {str(e)}")
+
+if __name__ == "__main__":
+    main()
+
+
+

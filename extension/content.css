@@ -1,0 +1,66 @@
+/* Truth History SDK - injected content styles (namespaced with .th-ext-) */
+
+.th-ext-banner {
+  margin: 8px 0 12px 0;
+  padding: 10px 12px;
+  border-left: 4px solid #64748b;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.04);
+  font-family: system-ui, -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #0f172a;
+}
+.th-ext-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.th-ext-logo { font-weight: 700; }
+.th-ext-cred { font-weight: 700; }
+.th-ext-tag {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+}
+.th-ext-tag.th-ext-bad { background: #dc2626; }
+.th-ext-tag.th-ext-good { background: #16a34a; }
+.th-ext-reasons ul { margin: 4px 0 0 0; padding-left: 18px; }
+.th-ext-reasons li { margin: 2px 0; }
+.th-ext-none { margin: 4px 0 0 0; color: #16a34a; }
+
+#th-ext-panel {
+  position: fixed;
+  z-index: 2147483647;
+  right: 20px;
+  bottom: 20px;
+  width: 360px;
+  max-width: calc(100vw - 40px);
+  padding: 14px;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  font-family: system-ui, -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  font-size: 13px;
+}
+#th-ext-panel.th-ext-err { border: 2px solid #dc2626; }
+#th-ext-panel .th-ext-hint { color: #64748b; font-size: 12px; margin: 6px 0 0 0; }
+#th-ext-panel code { background: #f1f5f9; padding: 1px 4px; border-radius: 4px; }
+.th-ext-close {
+  margin-top: 10px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+.th-ext-close:hover { background: #1e293b; }

@@ -1,0 +1,154 @@
+// Truth History SDK - content script
+// 지원 LLM 사이트의 어시스턴트 메시지를 관찰하여 한국사 고증 검증 배지를 삽입한다.
+
+const SITE_SELECTORS = {
+  "chatgpt.com": ['[data-message-author-role="assistant"]'],
+  "chat.openai.com": ['[data-message-author-role="assistant"]'],
+  "claude.ai": ['[data-testid="assistant-message"]', 'div.font-claude-message'],
+  "gemini.google.com": ['model-response', 'message-content'],
+};
+
+function selectorsForHost() {
+  const h = location.hostname;
+  for (const key of Object.keys(SITE_SELECTORS)) {
+    if (h.includes(key)) return SITE_SELECTORS[key];
+  }
+  return null;
+}
+
+function getText(node) {
+  return (node.innerText || node.textContent || "").trim();
+}
+
+function scanText(text) {
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage({ type: "TH_SCAN", text }, (resp) => resolve(resp));
+    } catch (e) {
+      resolve({ ok: false, error: String(e) });
+    }
+  });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[c]);
+}
+
+function riskColor(level) {
+  return ({ LOW: "#16a34a", MEDIUM: "#d97706", HIGH: "#dc2626", CRITICAL: "#b91c1c" })[level] || "#64748b";
+}
+
+function buildBanner(report) {
+  const d = (report && report.decision) || {};
+  const cred = Math.round(((d.credibility_score == null ? 1 : d.credibility_score)) * 100);
+  const level = d.risk_level || "LOW";
+  const reasons = (report && report.explanations ? report.explanations : []).map((e) => e.message).filter(Boolean);
+  const wrap = document.createElement("div");
+  wrap.className = "th-ext-banner";
+  wrap.style.borderLeftColor = riskColor(level);
+  const reasonsHtml = reasons.length
+    ? `<ul>${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>`
+    : "<p class=\"th-ext-none\">특이 역사 왜곡 징후 없음</p>";
+  wrap.innerHTML =
+    `<div class="th-ext-head">
+      <span class="th-ext-logo">🛡️ Truth History</span>
+      <span class="th-ext-cred" style="color:${riskColor(level)}">신뢰도 ${cred}% · ${escapeHtml(level)}</span>
+      <span class="th-ext-tag ${d.is_manipulated ? "th-ext-bad" : "th-ext-good"}">
+        ${d.is_manipulated ? "역사 왜곡·할루시네이션 의심" : "정상"}
+      </span>
+    </div>
+    <div class="th-ext-reasons">${reasonsHtml}</div>`;
+  return wrap;
+}
+
+async function scanNode(node) {
+  if (!node || node.dataset.thScanned) return;
+  const text = getText(node);
+  if (text.length < 15) return;
+  node.dataset.thScanned = "1";
+  const resp = await scanText(text);
+  if (resp && resp.ok && resp.report) {
+    try {
+      node.prepend(buildBanner(resp.report));
+    } catch (_) { /* shadow DOM 등 삽입 불가 시 무시 */ }
+    chrome.storage.local.set({
+      lastReport: resp.report,
+      lastText: text.slice(0, 240),
+      lastTs: Date.now(),
+    });
+  } else if (resp && !resp.ok) {
+    node.dataset.thScanned = ""; // 실패 시 재시도 허용
+    showError(resp.error || "검증 실패");
+  }
+}
+
+function scanUnscanned() {
+  const sels = selectorsForHost();
+  if (!sels) return;
+  const seen = new Set();
+  for (const sel of sels) {
+    document.querySelectorAll(sel).forEach((n) => {
+      if (!seen.has(n)) { seen.add(n); scanNode(n); }
+    });
+  }
+}
+
+let timer = null;
+const observer = new MutationObserver(() => {
+  if (timer) return;
+  timer = setTimeout(() => { timer = null; scanUnscanned(); }, 1500);
+});
+
+function start() {
+  chrome.storage.local.get({ autoScan: true }, ({ autoScan }) => {
+    if (!autoScan) return;
+    observer.observe(document.body, { childList: true, subtree: true });
+    setTimeout(scanUnscanned, 2500);
+  });
+}
+
+// 우클릭 선택 텍스트 검사 결과 → 플로팅 패널
+function showResult(report) {
+  removePanel();
+  const panel = document.createElement("div");
+  panel.id = "th-ext-panel";
+  panel.appendChild(buildBanner(report));
+  const close = document.createElement("button");
+  close.className = "th-ext-close";
+  close.textContent = "닫기";
+  close.onclick = removePanel;
+  panel.appendChild(close);
+  document.body.appendChild(panel);
+}
+
+function removePanel() {
+  const old = document.getElementById("th-ext-panel");
+  if (old) old.remove();
+}
+
+function showError(message) {
+  removePanel();
+  const panel = document.createElement("div");
+  panel.id = "th-ext-panel";
+  panel.className = "th-ext-err";
+  panel.innerHTML = `<div class="th-ext-head"><span class="th-ext-logo">🛡️ Truth History</span></div>
+    <p>검증 엔진 연결 실패: ${escapeHtml(String(message))}</p>
+    <p class="th-ext-hint">Truth History 백엔드(<code>th api</code>)가 실행 중인지, popup의 API 주소가 올바른지 확인하세요.</p>`;
+  const close = document.createElement("button");
+  close.className = "th-ext-close";
+  close.textContent = "닫기";
+  close.onclick = removePanel;
+  panel.appendChild(close);
+  document.body.appendChild(panel);
+  setTimeout(removePanel, 8000);
+}
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (!msg) return;
+  if (msg.type === "TH_SHOW_RESULT" && msg.report) showResult(msg.report);
+  if (msg.type === "TH_ERROR" && msg.message) showError(msg.message);
+});
+
+start();

@@ -18,7 +18,7 @@ dist-ssr/
 
 # Logs and databases
 *.log
-truthguard.db
+truthhistory.db
 
 # OS files
 .DS_Store
@@ -27,5 +27,5 @@ Thumbs.db
 # Project specific
 uploads/
 temp_ela_*
-truthguard.json
+truthhistory.json
 

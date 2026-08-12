@@ -1,6 +1,6 @@
-# TruthGuard SDK: 개발자 환경 설정 및 시작 가이드
+# Truth History SDK: 개발자 환경 설정 및 시작 가이드
 
-본 문서는 TruthGuard SDK 오픈소스 기여자와 개발자를 위한 개발 환경 셋업, 의존성 패키지 관리, 테스트 실행 및 PyPI 배포 프로세스를 다룹니다.
+Truth History SDK는 생성형 AI로 인한 한국 역사 할루시네이션 및 멀티미디어 위변조 리스크에 대응하는 오픈소스 프레임워크로, 텍스트 고증 검증과 시청각(이미지/영상/오디오) 교차 검증 모델을 단일 SDK로 통합한다. 본 문서는 오픈소스 기여자와 개발자를 위한 개발 환경 셋업, 의존성 패키지 관리, 테스트 실행 및 PyPI 배포 프로세스를 다룬다.
 
 ---
 
@@ -14,7 +14,7 @@
 
 ## 2. 프로젝트 초기 의존성 관리 스펙 (`pyproject.toml`)
 
-TruthGuard SDK는 패키지 빌드 및 배포 표준 규격인 `pyproject.toml`을 사용하여 의존성을 정의합니다. 아래 스펙을 프로젝트 루트에 작성합니다.
+Truth History SDK는 패키지 빌드 및 배포 표준 규격인 `pyproject.toml`을 사용하여 의존성을 정의합니다. 아래 스펙을 프로젝트 루트에 작성합니다.
 
 ```toml
 [build-system]
@@ -22,14 +22,14 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-name = "truthguard-sdk"
+name = "truth-history-sdk"
 version = "0.1.0"
 description = "AI-generated content and misinformation detection SDK & CLI framework."
-authors = ["TruthGuard Contributors <contact@truthguard.org>"]
+authors = ["Truth History Contributors <contact@truthhistory.org>"]
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/truthguard/truthguard"
-packages = [{include = "truthguard"}]
+repository = "https://github.com/kimneche0419-rgb/TURTH_GUARD"
+packages = [{include = "truthhistory"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
@@ -53,7 +53,7 @@ audio = ["librosa", "torch"]
 all = ["transformers", "torch", "opencv-python", "pillow", "librosa"]
 
 [tool.poetry.scripts]
-truthguard = "truthguard.cli.main:main"
+truthhistory = "truthhistory.cli.main:main"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
@@ -69,8 +69,8 @@ mypy = "^1.5.0"
 ### 3.1 venv와 pip를 사용하는 경우
 ```bash
 # 1. 저장소 클론 및 이동
-git clone https://github.com/truthguard/truthguard.git
-cd truthguard
+git clone https://github.com/kimneche0419-rgb/TURTH_GUARD.git
+cd truthhistory
 
 # 2. 가상환경 생성 및 활성화 (Windows 기준)
 python -m venv .venv
@@ -96,7 +96,7 @@ poetry shell
 Python 모듈로서 정상 임포트가 가능하게 하려면, 모든 디렉터리에 `__init__.py`가 알맞게 배치되어야 합니다.
 
 ```plaintext
-truthguard/
+truthhistory/
  ├── __init__.py             # 버전 및 주요 detect_xxx 함수 노출
  ├── base.py                 # BaseAnalyzer 및 AnalysisResult 정의
  ├── text/
@@ -119,11 +119,11 @@ truthguard/
       └── main.py            # click/argparse CLI 엔트리 포인트
 ```
 
-`truthguard/__init__.py` 예시:
+`truthhistory/__init__.py` 예시:
 ```python
-from truthguard.base import AnalysisResult
-from truthguard.text.analyzer import TextAnalyzer
-from truthguard.image.analyzer import ImageAnalyzer
+from truthhistory.base import AnalysisResult
+from truthhistory.text.analyzer import TextAnalyzer
+from truthhistory.image.analyzer import ImageAnalyzer
 
 __version__ = "0.1.0"
 
@@ -144,13 +144,13 @@ def detect_image(image_path: str, **kwargs) -> AnalysisResult:
 
 ```bash
 # 코드 포맷 자동 교정
-black truthguard/ tests/
+black truthhistory/ tests/
 
 # 정적 분석 및 네이밍 스타일 검사
-flake8 truthguard/
+flake8 truthhistory/
 
 # 타입 힌트 오류 체크
-mypy truthguard/
+mypy truthhistory/
 ```
 
 ---

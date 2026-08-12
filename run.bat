@@ -1,6 +1,6 @@
 @echo off
 echo ==================================================
-echo         TruthGuard Full-Stack Dev Booter
+echo         Truth History Full-Stack Dev Booter
 echo ==================================================
 
 :: 1. Check Python Virtual Environment
@@ -25,11 +25,11 @@ echo [SUCCESS] Dependency check passed. Starting servers...
 
 :: 3. Start FastAPI backend in a new window
 echo [INFO] Starting FastAPI backend on Port 8000...
-start "TruthGuard Backend" cmd /c ".venv\Scripts\python.exe -m uvicorn truthguard_server:app --reload --port 8000"
+start "Truth History Backend" cmd /c ".venv\Scripts\python.exe -m uvicorn truthhistory_server:app --reload --port 8000"
 
 :: 4. Start React frontend in a new window
 echo [INFO] Starting React Frontend on Port 5173...
-start "TruthGuard Dashboard" cmd /c "npm run dev"
+start "Truth History Dashboard" cmd /c "npm run dev"
 
 echo ==================================================
 echo  [SUCCESS] Both servers are starting up!

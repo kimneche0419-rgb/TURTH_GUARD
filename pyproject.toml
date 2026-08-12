@@ -3,14 +3,14 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-name = "truthguard-sdk"
+name = "truth-history-sdk"
 version = "0.1.0"
-description = "AI-generated content and misinformation detection SDK & CLI framework."
-authors = ["TruthGuard Contributors <contact@truthguard.org>"]
+description = "Truth History SDK: Korean history hallucination & multimedia manipulation detection framework."
+authors = ["Truth History Contributors <contact@truthhistory.org>"]
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/truthguard/truthguard"
-packages = [{include = "truthguard"}]
+repository = "https://github.com/kimneche0419-rgb/TURTH_GUARD"
+packages = [{include = "truthhistory"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
@@ -34,8 +34,8 @@ audio = ["librosa", "torch"]
 all = ["transformers", "torch", "opencv-python", "pillow", "librosa"]
 
 [tool.poetry.scripts]
-truthguard = "truthguard.cli.main:main"
-tg = "truthguard.cli.main:main"
+truthhistory = "truthhistory.cli.main:main"
+th = "truthhistory.cli.main:main"
 
 
 [tool.poetry.group.dev.dependencies]

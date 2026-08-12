@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>Truth History 가드</title>
+  <style>
+    body { width: 320px; margin: 0; font-family: system-ui, -apple-system, "Malgun Gothic", sans-serif; background: #0f172a; color: #f8fafc; padding: 16px; }
+    h1 { font-size: 15px; margin: 0 0 2px 0; }
+    .sub { color: #94a3b8; font-size: 11px; margin: 0 0 14px 0; }
+    label { display: block; font-size: 11px; color: #94a3b8; margin: 10px 0 4px 0; font-weight: 600; }
+    input[type=text], input[type=password] { width: 100%; box-sizing: border-box; padding: 7px 9px; border-radius: 7px; border: 1px solid #334155; background: #1e293b; color: #f8fafc; font-size: 12px; outline: none; }
+    .row { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+    .switch { position: relative; width: 40px; height: 22px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; inset: 0; background: #334155; border-radius: 999px; transition: .2s; }
+    .slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: #f8fafc; border-radius: 50%; transition: .2s; }
+    input:checked + .slider { background: #38bdf8; }
+    input:checked + .slider:before { transform: translateX(18px); }
+    button { margin-top: 14px; width: 100%; padding: 9px; border: none; border-radius: 8px; background: #0284c7; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; }
+    button:hover { background: #0369a1; }
+    .status { margin-top: 12px; padding: 10px; border-radius: 8px; background: #1e293b; font-size: 12px; min-height: 20px; }
+    .cred { font-size: 20px; font-weight: 800; }
+    .ok { color: #16a34a; } .warn { color: #d97706; } .bad { color: #ef4444; }
+    .muted { color: #64748b; }
+    .reasons { margin: 6px 0 0 0; padding-left: 16px; }
+    .reasons li { margin: 2px 0; }
+    .hint { color: #64748b; font-size: 11px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>🛡️ Truth History 가드</h1>
+  <p class="sub">LLM 역사 할루시네이션 실시간 교차 검증</p>
+
+  <div class="row">
+    <span style="font-size:12px;">자동 스캔(지원 LLM 사이트)</span>
+    <label class="switch"><input type="checkbox" id="autoScan" /><span class="slider"></span></label>
+  </div>
+
+  <label>API 엔드포인트</label>
+  <input type="text" id="apiUrl" placeholder="http://localhost:8000" />
+
+  <label>API Key (옵션)</label>
+  <input type="password" id="apiKey" placeholder="서버 보안 설정 시에만 입력" />
+
+  <button id="save">설정 저장</button>
+
+  <div class="status" id="status"><span class="muted">최근 검사 결과가 여기에 표시됩니다.</span></div>
+  <p class="hint">지원 사이트에서 어시스턴트 답변에 배지가 자동 삽입되며, 텍스트를 선택해 우클릭하면 즉시 검증할 수 있습니다.</p>
+
+  <script src="popup.js"></script>
+</body>
+</html>

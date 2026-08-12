@@ -1,12 +1,19 @@
-# TruthGuard SDK: Text Analyzer 상세 구현 설계서
+# Truth History SDK: 한국사 텍스트 고증 검증(Text Analyzer) 상세 구현 설계서
 
-본 문서는 `TextAnalyzer` 모듈의 내부 구조, AI 생성 감지 알고리즘(Perplexity & Burstiness)의 파이썬 구현 수식 및 코드, 그리고 외부 API 연동 규격을 상술합니다.
+생성형 AI의 발전은 그럴듯하지만 허위인 한국 역사 서술(역사 할루시네이션)을 대량으로 생성·확산시키는 리스크를 낳고 있다. 본 문서는 `TextAnalyzer` 모듈이 이 위험에 어떻게 대응하는지를 상술합니다.
+
+- **(1) AI 생성 탐지**: 텍스트의 AI 생성 여부를 Perplexity/Burstiness 통계로 정량화한다.
+- **(2) 역사적 정합성 검증**: 검증 대상 텍스트를 권위 있는 한국사 사료·팩트체크(국사편찬위원회, 교과서, 사료 데이터베이스 등)와 교차 검증하여 역사적 정합성을 평가한다.
+
+본 모듈은 4대 탐지 모듈 중 **텍스트 고증 검증**을 담당하며, ELA 이미지 합성 탐지·딥페이크 페이스 스왑 탐지·AI 복제 음성 탐지 모듈과 함께 단일 SDK의 텍스트·시청각 교차 검증 파이프라인을 구성합니다. 경량 로컬 추론과 외부 API 연동의 혼합 설계하에 동작하며, 판정 근거는 XAI 리포트(JSON)로 투명하게 제공합니다.
 
 ---
 
 ## 1. AI 생성 탐지 핵심 알고리즘 및 구현
 
-AI가 생성한 텍스트는 사람이 작성한 텍스트에 비해 단어의 예측 가능성(Perplexity)이 매우 높고, 문장별 길이 및 복잡도의 기복(Burstiness)이 적습니다.
+AI가 생성한 텍스트는 사람이 작성한 텍스트에 비해 단어의 예측 가능성(Perplexity)이 매우 높고, 문장별 길이 및 복잡도의 기복(Burstiness)이 적습니다. 본 모듈은 이 두 지표로 한국사 텍스트의 AI 생성 가능성을 정량화합니다.
+
+> **한국어·한국사 문맥 특화**: 영어 중심의 범용 언어모델(예: GPT-2)은 한글 토크나이징과 역사 도메인 용어 분포를 제대로 반영하지 못합니다. 따라서 한국어 언어모델(Korean LM)과 한국사 코퍼스로 추가 학습된 모델을 전제로 하며, 임계값 보정 역시 한국사 서술의 통계적 특성에 맞춰 적용되어야 합니다.
 
 ### 1.1 Perplexity (PPL) 계산 수식
 Perplexity는 주어진 모델이 해당 문장을 예측할 때의 곤혹도로서, 아래 수식과 같이 손실값(Cross Entropy)의 지수함수로 계산됩니다.
@@ -23,7 +30,7 @@ $$Burstiness = \frac{\sigma_{PPL}}{\mu_{PPL}}$$
 ```python
 import math
 from typing import List
-from truthguard.architecture import LazyModuleImporter
+from truthhistory.architecture import LazyModuleImporter
 
 class AIGenerationDetector:
     def __init__(self, model_name: str = "gpt2"):
@@ -87,10 +94,10 @@ class AIGenerationDetector:
 
 ## 2. 외부 API 연동 설계
 
-기존 기보도 사실과의 정합성 판별을 위해 Google Fact Check API를, 자연어 문맥 분석을 위해 Gemini API(또는 OpenAI GPT API)를 사용합니다.
+AI 생성 탐지와 더불어, 검증 대상 한국사 텍스트가 **권위 있는 역사 사료·팩트체크**와 정합성을 갖는지 평가하기 위해 외부 API를 연동합니다. Google Fact Check API는 사료·팩트체크 데이터베이스에서 일치하는 클레임을 검색하고, LLM(Gemini/OpenAI GPT)은 수집된 참조 문서(국사편찬위원회 자료, 교과서 서술, 디지털 사료 등)와 텍스트 간 주장 정합성을 자연어 추론으로 평가합니다. 두 결과는 경량 로컬 추론과 외부 API 연동의 혼합 설계 하에서 취합되어, 픽셀/주파수 기반의 시청각 모듈과 함께 XAI 판정 근거로 제공됩니다.
 
 ### 2.1 Google Fact Check Explorer API 연동
-주요 팩트체크 기보도 데이터베이스를 쿼리하여 일치하는 클레임이 있는지 검색합니다.
+주요 팩트체크 및 역사 사료 데이터베이스를 쿼리하여, 검증 대상 주장과 일치하는 클레임이 기존에 팩트체크된 내역이 있는지 검색합니다.
 
 ```python
 import urllib.parse
@@ -126,13 +133,13 @@ import google.generativeai as genai
 
 def evaluate_fact_consistency_with_gemini(text: str, context_documents: str, api_key: str) -> float:
     """
-    수집된 레퍼런스 문서들과 검증 대상 텍스트 간의 주장 정합성을 LLM으로 평가합니다.
+    수집된 역사 사료 레퍼런스 문서들과 검증 대상 텍스트 간의 주장 정합성을 LLM으로 평가합니다.
     """
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-1.5-flash')
     
     prompt = f"""
-    아래 [검증 대상 텍스트]가 [참조 데이터]의 사실 정보와 얼마나 일치하는지 평가해라.
+    아래 [검증 대상 텍스트]가 [참조 데이터](국사편찬위원회·교과서·사료 등 권위 있는 역사 사료)의 역사적 사실 정보와 얼마나 일치하는지 평가해라.
     오로지 0.0(완벽히 거짓/모순됨)에서 1.0(완벽히 사실이며 일치함) 사이의 실수값 하나만 반환하라.
     
     [참조 데이터]
@@ -153,12 +160,12 @@ def evaluate_fact_consistency_with_gemini(text: str, context_documents: str, api
 
 ## 3. 단위 테스트 및 모킹(Mocking) 가이드
 
-외부 API 호출 비용과 검증 비결정성을 제거하기 위해, 테스트 시에는 `unittest.mock`을 활용해 API 응답을 모킹하도록 설계합니다.
+외부 API 호출 비용과 검증 비결정성을 제거하기 위해, 테스트 시에는 `unittest.mock`을 활용해 API 응답을 모킹하도록 설계합니다. 이를 통해 역사 사료 기반 정합성 판정 역시 결정론적으로 검증할 수 있습니다.
 
 ```python
 import unittest
 from unittest.mock import patch
-from truthguard.text.analyzer import TextAnalyzer
+from truthhistory.text.analyzer import TextAnalyzer
 
 class TestTextAnalyzer(unittest.TestCase):
     def setUp(self):
@@ -169,8 +176,8 @@ class TestTextAnalyzer(unittest.TestCase):
         }
         self.analyzer = TextAnalyzer(self.config)
 
-    @patch("truthguard.text.analyzer.search_fact_check_claims")
-    @patch("truthguard.text.analyzer.evaluate_fact_consistency_with_gemini")
+    @patch("truthhistory.text.analyzer.search_fact_check_claims")
+    @patch("truthhistory.text.analyzer.evaluate_fact_consistency_with_gemini")
     def test_analyze_with_mocked_apis(self, mock_gemini, mock_factcheck):
         # 모킹 반환값 설정
         mock_factcheck.return_value = [{"text": "테스트 클레임", "review": "거짓"}]
@@ -180,7 +187,7 @@ class TestTextAnalyzer(unittest.TestCase):
         
         self.assertTrue(result.is_manipulated)
         self.assertLess(result.credibility_score, 0.4)
-        self.assertIn("주장과 기보도 사실 간의 불일치성 다수 발견", result.reasons)
+        self.assertIn("주장과 권위 있는 역사 사료 간의 불일치 다수 발견", result.reasons)
 
 if __name__ == "__main__":
     unittest.main()

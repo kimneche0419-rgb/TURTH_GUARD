@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Truth History: LLM 역사 할루시네이션 가드",
+  "version": "0.1.0",
+  "description": "LLM(ChatGPT/Claude/Gemini 등) 출력의 한국사 왜곡·할루시네이션을 Truth History SDK 고증 검증 엔진으로 실시간 교차 검증하여 경고합니다.",
+  "permissions": ["activeTab", "storage", "contextMenus", "scripting"],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*",
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Truth History 가드",
+    "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  },
+  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
