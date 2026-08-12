@@ -41,6 +41,8 @@ interface ScanResult {
   explanations: Explanation[];
 }
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'file' | 'url'>('file');
   const [file, setFile] = useState<File | null>(null);
@@ -104,14 +106,14 @@ export default function App() {
           formData.append('transcript', transcript);
         }
         const response = await axios.post<ScanResult>(
-          'http://localhost:8000/api/v1/scan/media', 
+          `${API_BASE}/api/v1/scan/media`,
           formData,
           { headers }
         );
         setResult(response.data);
       } else {
         const response = await axios.post<ScanResult>(
-          'http://localhost:8000/api/v1/scan/url', 
+          `${API_BASE}/api/v1/scan/url`,
           { url: url.trim() },
           { headers }
         );

@@ -2,6 +2,7 @@
 import os
 import shutil
 import json
+import tempfile
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Security, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
@@ -26,7 +27,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-UPLOAD_DIR = "uploads"
+UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "truthhistory_uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # API Key 보안 스키마 정의

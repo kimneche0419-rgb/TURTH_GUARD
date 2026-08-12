@@ -1,0 +1,12 @@
+# Truth History SDK - Vercel 서버리스 백엔드 의존성 (경량)
+# torch / transformers / librosa 는 서버리스 크기/시간 제약상 제외 —
+# 텍스트 분석은 어휘 다양도 휴리스틱 폴백, 오디오 스펙트럼은 중립값 폴백으로 동작.
+fastapi>=0.100.0
+pydantic>=2.0.0
+requests>=2.31.0
+python-multipart>=0.0.6
+pillow>=10.0.0
+numpy>=1.24.0
+opencv-python-headless>=4.8.0
+click>=8.1.0
+rich>=13.7.0

@@ -1,0 +1,20 @@
+# Vercel 배포에서 제외할 파일/디렉터리 (빌드 크기/시간 절감)
+.venv
+node_modules
+__pycache__
+*.pyc
+*.pyo
+.git
+.gitignore
+.pytest_cache
+.mypy_cache
+tests
+uploads
+truthhistory.json
+truthhistory.db
+*.log
+news.txt
+test_news.txt
+run.bat
+th.bat
+th.ps1

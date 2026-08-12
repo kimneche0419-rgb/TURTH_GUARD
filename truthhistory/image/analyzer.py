@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import tempfile
 from typing import Any, Dict, List
 
 from truthhistory.base import BaseAnalyzer, AnalysisResult, LazyModuleImporter
@@ -80,7 +81,7 @@ class ImageAnalyzer(BaseAnalyzer):
             Image = LazyModuleImporter.import_module("PIL.Image", "image")
             ImageChops = LazyModuleImporter.import_module("PIL.ImageChops", "image")
             
-            temp_filename = f"temp_ela_{os.path.basename(image_path)}"
+            temp_filename = os.path.join(tempfile.gettempdir(), f"temp_ela_{os.path.basename(image_path)}")
             
             # 원본 로드 후 지정 퀄리티로 임시 저장
             original = Image.open(image_path).convert("RGB")

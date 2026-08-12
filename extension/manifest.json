@@ -5,12 +5,8 @@
   "description": "LLM(ChatGPT/Claude/Gemini 등) 출력의 한국사 왜곡·할루시네이션을 Truth History SDK 고증 검증 엔진으로 실시간 교차 검증하여 경고합니다.",
   "permissions": ["activeTab", "storage", "contextMenus", "scripting"],
   "host_permissions": [
-    "http://localhost:8000/*",
-    "http://127.0.0.1:8000/*",
-    "https://chatgpt.com/*",
-    "https://chat.openai.com/*",
-    "https://claude.ai/*",
-    "https://gemini.google.com/*"
+    "http://*/*",
+    "https://*/*"
   ],
   "background": { "service_worker": "background.js" },
   "action": {
