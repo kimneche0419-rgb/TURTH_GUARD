@@ -1,6 +1,5 @@
-// Truth History SDK - popup logic
+const DEFAULTS = { apiUrl: "https://platy-rho.vercel.app", apiKey: "", autoScan: true, threshold: 0.5 };
 
-const DEFAULTS = { apiUrl: "http://localhost:8000", apiKey: "", autoScan: true, threshold: 0.5 };
 
 const $ = (id) => document.getElementById(id);
 

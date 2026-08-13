@@ -2,7 +2,7 @@
 // LLM 역사 할루시네이션 검증 요청을 Truth History REST API로 중계한다.
 
 const DEFAULTS = {
-  apiUrl: "http://localhost:8000",
+  apiUrl: "https://platy-rho.vercel.app",
   apiKey: "",
   autoScan: true,
   threshold: 0.5,
