@@ -13,10 +13,11 @@
 
 ## 설치 (개발자 모드)
 
-1. Truth History 백엔드 실행: 프로젝트 루트에서 `th api` (기본 `http://localhost:8000`).
+1. **(권장) 배포된 백엔드 사용** — 별도 실행 없이 팝업의 API 주소를 `https://platy-rho.vercel.app` 로 설정.
+   또는 로컬 백엔드: 프로젝트 루트에서 `th api` (기본 `http://localhost:8000`).
 2. Chrome / Whale / Edge에서 `chrome://extensions` 접속 → 우측 상단 **개발자 모드** 활성화.
 3. **"압축 해제된 확장 프로그램 로드"** 클릭 → 이 `extension/` 폴더 선택.
-4. 툴바의 🛡️ 아이콘 클릭 → 팝업에서 API 주소(`http://localhost:8000`) 확인 후 **설정 저장**.
+4. 툴바의 🛡️ 아이콘 클릭 → 팝업에서 API 주소를 위 백엔드 주소(`https://platy-rho.vercel.app` 또는 `http://localhost:8000`)로 확인/변경 후 **설정 저장**.
 5. ChatGPT/Claude/Gemini 에서 역사 질문 후 답변에 Truth History 배지가 나타나는지 확인.
 
 ## 지원 사이트

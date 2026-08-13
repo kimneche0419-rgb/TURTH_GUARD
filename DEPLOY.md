@@ -1,96 +1,69 @@
 # Truth History SDK — 배포 가이드 (Vercel)
 
-> **현재 상태(오늘):** Vercel 배포용 구성 파일은 모두 준비·커밋 완료. 서버리스 대응 패치(읽기전용 FS)도 적용됨.
-> **내일 남은 일:** Vercel 계정 연결 + 환경변수 1개 + 배포 명령 1줄.
+> **상태: 🟢 라이브** — `https://platy-rho.vercel.app`
+> 프론트엔드(React 대시보드) + 백엔드(FastAPI 서버리스)가 같은 도메인에서 동작 중.
 
 ---
 
-## 아키텍처 (Vercel 단일 프로젝트)
-- **프론트엔드**(React/Vite 대시보드) → 정적 호스팅
-- **백엔드**(FastAPI) → `api/index.py` Python 서버리스 함수
-- `vercel.json`: `/api/v1/*` 만 서버리스 함수로 라우팅, 나머지 경로는 정적 프론트 → **같은 도메인, CORS 이슈 없음**
+## 배포된 구성 (Vercel 단일 프로젝트 `jlab0419/platy`)
+- **프론트엔드**(React/Vite) → 정적 호스팅 (`/`)
+- **백엔드**(FastAPI) → `api/index.py` Python 서버리스 함수 (`/api/v1/*`)
+- `vercel.json`: `/api/v1/:path*` → 서버리스 함수 라우팅, 같은 도메인이라 CORS 이슈 없음
+- 프론트는 빌드 모드로 자동 전환 (`PROD` → 상대경로 동일 출처 / dev → `localhost:8000`) — 환경변수 불필요
 
-### 준비된 파일 (이미 커밋됨)
-| 파일 | 역할 |
+## 검증된 엔드포인트
+| URL | 동작 |
 | :--- | :--- |
-| `requirements.txt` | 서버리스 백엔드 의존성(경량: torch/librosa 제외) |
-| `api/index.py` | FastAPI 앱을 ASGI 서버리스 함수로 노출 |
-| `vercel.json` | `/api/v1/*` 라우팅 rewrite |
-| `.vercelignore` | `.venv`/`node_modules`/`tests` 등 배포 제외 |
-| `src/vite-env.d.ts` | `import.meta.env` 타입 |
-| `src/App.tsx` | `VITE_API_URL` 환경변수 기반 API 호출(기본 localhost:8000) |
-| 서버/ELA 패치 | `uploads`·ELA 임시파일을 `/tmp`로 → 읽기전용 FS 대응 |
+| `GET  https://platy-rho.vercel.app/` | ✅ React 대시보드 (200) |
+| `POST https://platy-rho.vercel.app/api/v1/scan/text` | ✅ 한국사 텍스트 고증 검증 XAI JSON (200) |
+| `POST https://platy-rho.vercel.app/api/v1/scan/url`  | ✅ 웹페이지 본문 크롤링 → 고증 검증 |
+| `POST .../api/v1/scan/media` (이미지/영상/오디오) | ⚠️ 중립 폴백 (아래 참고) |
 
----
-
-## 내일 배포 절차 (3단계)
-
-### 1. Vercel 로그인 (최초 1회)
+요청 예:
 ```bash
-vercel login
-```
-→ 안내된 코드를 https://vercel.com/device 에서 입력해 본인 계정 연결.
-
-### 2. 프로젝트 연결 + 환경변수
-```bash
-vercel link          # 현재 디렉터리를 Vercel 프로젝트로 연결
-vercel               # 최초 Preview 배포 → 배포 URL 획득 (예: https://truth-history-xxx.vercel.app)
-```
-프론트가 같은 도메인 백엔드를 가리키도록 환경변수 설정(배포된 최종 URL 사용):
-```bash
-vercel env add VITE_API_URL production
-# 값 입력: https://truth-history-xxx.vercel.app  (위에서 받은 프로덕션 URL)
+curl -X POST https://platy-rho.vercel.app/api/v1/scan/text \
+  -H "Content-Type: application/json" \
+  -d '{"text":"이순신 장군은 임진왜란 때 거북선으로 한산도 대첩에서 승리했다."}'
 ```
 
-### 3. 프로덕션 배포
-```bash
-vercel --prod
-```
-출력된 URL로 확인:
-- `https://<url>/` → React 대시보드
-- `POST https://<url>/api/v1/scan/text` (body: `{"text":"..."}`) → XAI JSON 리포트
-
-> 프로덕션 URL이 확정되면 `VITE_API_URL` 값을 그 URL로 맞추고 다시 `vercel --prod` 한 번 더.
-
----
-
-## 배포 후: 크롬 확장 프로그램 연결
-1. `chrome://extensions` → 🛡️ 확장 카드의 "세부정보" 또는 팝업
-2. 팝업의 **API 엔드포인트**를 `https://<배포된-URL>` 로 변경 → **설정 저장**
-3. (host_permissions는 `http://*/*`, `https://*/*` 로 열려 있어 재로드만 하면 어떤 배포 URL이든 즉시 호출 가능)
-
----
-
-## 서버리스 지원 범위 / 제약
+## 서버리스 지원 범위 / 제약 (중요)
+서버리스 함수 225MB 한계로 **opencv/numpy/pillow/torch/librosa 미포함**.
 | 모듈 | 상태 |
 | :--- | :--- |
-| 텍스트 고증 검증 (`/scan/text`) | ✅ 정상 (어휘 다양도 휴리스틱) |
+| 텍스트 고증 검증 (`/scan/text`) | ✅ 정상 (AI 생성 어휘 다양도 + 팩트체크 + 선동성 + 출처) |
 | URL 스캔 (`/scan/url`) | ✅ 정상 |
-| 이미지 ELA/FFT/안면대칭 (`/scan/media`) | ✅ 정상 (opencv-headless 포함) |
-| 비디오 temporal jitter/안면 | ✅ 정상 |
-| 오디오 스펙트럼(MFCC/HNR) | ⚠️ librosa 미포함 → 중립값 폴백 (키워드 문맥 분석은 동작) |
-| 콜드스타트 / 타임아웃 | ⚠️ 유휴 후 첫 요청 수초 지연, 10s(Hobby)/60s(Pro) |
+| 이미지/영상/오디오 (`/scan/media`) | ⚠️ 의존성 미포함 → 중립값 폴백(실제 탐지 안 됨) |
+| 콜드스타트 / 타임아웃 | ⚠️ 유휴 후 첫 요청 수초 지연, 60s(Pro) 타임아웃 |
 
-> 전체 멀티미디어·장시간 처리·상시 구동이 필요하면 **Render/Railway/Fly.io** 컨테이너 권장
-> (`Dockerfile` + `truthhistory_server:app` 그대로 구동, 의존성 제한 없음).
+> **전체 멀티미디어(ELA/딥페이크/AI 복제 음성) 탐지가 필요하면** Vercel 대신
+> **Render / Railway / Fly.io** 같은 컨테이너 호스트 사용 (`requirements.txt`에 opencv/numpy/pillow/librosa 추가 + `truthhistory_server:app` 그대로 구동, 의존성 한계 없음).
 
 ---
 
-## 로컬 개발 (기존 그대로)
-프론트 dev 서버는 기본적으로 로컬 백엔드(`http://localhost:8000`)를 호출.
+## 크롬 확장 프로그램 → 배포 URL 연결
+백엔드를 로컬(`th api`) 대신 배포 URL로 쓰려면:
+1. `chrome://extensions` → 🛡️ 팝업 클릭
+2. **API 엔드포인트**를 `https://platy-rho.vercel.app` 로 변경 → **설정 저장**
+3. (host_permissions가 `http://*/*`, `https://*/*` 이라 재로드만 하면 즉시 동작)
+
+이제 로컬 백엔드 없이도 ChatGPT/Claude/Gemini 어디서든 역사 할루시네이션 검증 가능.
+
+---
+
+## 재배포 (코드 변경 시)
+프로젝트는 이미 Vercel에 링크됨(`.vercel/project.json`). 코드 push 후:
 ```bash
-th api            # 백엔드
-npm run dev       # 프론트(http://localhost:5173) → localhost:8000 호출
+vercel --prod --yes
 ```
-원하면 프로젝트 루트 `.env.local` 에 `VITE_API_URL=http://localhost:8000` 명시 가능.
+
+## 로컬 개발
+```bash
+th api          # 백엔드 (http://localhost:8000)
+npm run dev     # 프론트 (http://localhost:5173) → dev 모드이므로 localhost:8000 호출
+```
 
 ---
 
-## 체크리스트 (내일)
-- [ ] `vercel login`
-- [ ] `vercel link`
-- [ ] `vercel`(preview) → URL 확인
-- [ ] `vercel env add VITE_API_URL production` → URL 입력
-- [ ] `vercel --prod`
-- [ ] 대시보드 + `/api/v1/scan/text` 동작 확인
-- [ ] 크롬 확장 팝업 API 주소 → 배포 URL로 변경
+## 트러블슈팅 기록 (참고)
+- `uv lock` / `No project table` 에러 → `pyproject.toml`(Poetry)을 `.vercelignore`로 제외, `requirements.txt` 기반 빌드 유도.
+- `Total bundle size 297MB exceeds 225MB` → opencv/numpy/pillow 제거(텍스트 중심 최소 의존성)로 해결.
