@@ -107,7 +107,9 @@ class TextAnalyzer(BaseAnalyzer):
         sources_used = sorted({e.get("source", "?") for e in evidence})
         result["sources_used"] = sources_used
         result["evidence_count"] = len(evidence)
-        result["evidence_sample"] = evidence[:3]
+        result["evidence_sample"] = evidence[:5]
+        # 권위 사료(커버리지 최고 증거)를 '참고 사료(수정된 진실 근거)'로 노출
+        result["reference"] = result.get("best_evidence") or (evidence[0] if evidence else {})
         return result
 
     def analyze_sensationalism(self, text: str) -> Dict[str, Any]:

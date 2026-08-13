@@ -139,7 +139,7 @@ def search_naver(query: str, client_id: str, client_secret: str, timeout: int = 
         for item in r.json().get("items", [])[:5]:
             desc = _strip_tags(item.get("description", ""))
             if desc:
-                out.append({"source": "naver", "title": _strip_tags(item.get("title", "")), "snippet": desc})
+                out.append({"source": "naver", "title": _strip_tags(item.get("title", "")), "snippet": desc, "url": item.get("link", "")})
         return out
     except Exception:
         return []
@@ -164,7 +164,9 @@ def search_wikipedia(query: str, timeout: int = 6) -> List[Dict[str, str]]:
         for it in r.json().get("query", {}).get("search", [])[:5]:
             snip = _strip_tags(it.get("snippet", ""))
             if snip:
-                out.append({"source": "wikipedia", "title": it.get("title", ""), "snippet": snip})
+                pageid = it.get("pageid")
+                url = f"https://ko.wikipedia.org/?curid={pageid}" if pageid else ""
+                out.append({"source": "wikipedia", "title": it.get("title", ""), "snippet": snip, "url": url})
         return out
     except Exception:
         return []
@@ -223,14 +225,15 @@ def score_consistency(text: str, evidence: List[Dict[str, Any]]) -> Dict[str, An
             "best_coverage": 0.0,
             "matched_keywords": [],
             "contradiction": False,
+            "best_evidence": {},
         }
-    best_cov, best_snip, matched_best = 0.0, "", []
+    best_cov, best_snip, matched_best, best_ev = 0.0, "", [], None
     for ev in evidence:
         snip = f"{ev.get('snippet', '')} {ev.get('title', '')}"
         matched = [k for k in keywords if k in snip]
         cov = len(matched) / len(keywords)
         if cov > best_cov:
-            best_cov, best_snip, matched_best = cov, snip, matched
+            best_cov, best_snip, matched_best, best_ev = cov, snip, matched, ev
     contradiction = best_cov > 0 and any(c in best_snip for c in _CONTRADICTION_CUES)
     score = 0.4 + 0.5 * best_cov
     if contradiction:
@@ -241,4 +244,5 @@ def score_consistency(text: str, evidence: List[Dict[str, Any]]) -> Dict[str, An
         "best_coverage": round(best_cov, 4),
         "matched_keywords": matched_best,
         "contradiction": contradiction,
+        "best_evidence": best_ev or {},
     }

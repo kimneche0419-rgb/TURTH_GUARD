@@ -1,50 +1,38 @@
 /* Truth History SDK - injected content styles (namespaced with .th-ext-) */
 
+/* 인라인 배지: 호스트 페이지에 맞춰 자동 적응 (배경 투명, 글자색 상속) */
 .th-ext-banner {
   margin: 8px 0 12px 0;
-  padding: 10px 12px;
+  padding: 8px 12px;
+  border: 1px solid rgba(128, 128, 128, 0.35);
   border-left: 4px solid #64748b;
   border-radius: 8px;
-  background: #ffffff;
+  background: transparent;
   font-family: system-ui, -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
   font-size: 13px;
   line-height: 1.5;
-  color: #000000;
+  color: inherit;
+  cursor: pointer;
 }
-.th-ext-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
-}
-.th-ext-logo { font-weight: 700; color: #000000; }
-.th-ext-cred { font-weight: 700; color: #000000; }
+.th-ext-banner:hover { background: rgba(128, 128, 128, 0.08); }
+.th-ext-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 6px; }
+.th-ext-logo { font-weight: 700; color: inherit; }
+.th-ext-cred { font-weight: 700; color: inherit; }
 .th-ext-tag {
-  margin-left: auto;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #fff;
+  margin-left: auto; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; color: #fff;
 }
 .th-ext-tag.th-ext-bad { background: #dc2626; }
 .th-ext-tag.th-ext-good { background: #16a34a; }
 .th-ext-reasons ul { margin: 4px 0 0 0; padding-left: 18px; }
-.th-ext-reasons li { margin: 2px 0; color: #000000; }
-.th-ext-none { margin: 4px 0 0 0; color: #000000; }
+.th-ext-reasons li { margin: 2px 0; color: inherit; }
+.th-ext-none { margin: 4px 0 0 0; color: inherit; }
 
+/* 우클릭 선택 검사 플로팅 패널 (자체 카드) */
 #th-ext-panel {
-  position: fixed;
-  z-index: 2147483647;
-  right: 20px;
-  bottom: 20px;
-  width: 360px;
-  max-width: calc(100vw - 40px);
-  padding: 14px;
-  border-radius: 12px;
-  background: #ffffff;
-  color: #000000;
+  position: fixed; z-index: 2147483647; right: 20px; bottom: 20px;
+  width: 360px; max-width: calc(100vw - 40px); padding: 14px; border-radius: 12px;
+  background: #ffffff; color: #000000;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
   font-family: system-ui, -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
   font-size: 13px;
@@ -53,14 +41,29 @@
 #th-ext-panel .th-ext-hint { color: #000000; font-size: 12px; margin: 6px 0 0 0; }
 #th-ext-panel code { background: #f1f5f9; padding: 1px 4px; border-radius: 4px; }
 .th-ext-close {
-  margin-top: 10px;
-  width: 100%;
-  padding: 6px 10px;
-  border: 1px solid #0f172a;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #000000;
-  font-size: 12px;
-  cursor: pointer;
+  margin-top: 10px; width: 100%; padding: 6px 10px;
+  border: 1px solid #0f172a; border-radius: 8px;
+  background: #ffffff; color: #000000; font-size: 12px; cursor: pointer;
 }
 .th-ext-close:hover { background: #f1f5f9; }
+
+/* 상세 리포트 패널 (배지 클릭 시) */
+#th-ext-detail {
+  position: fixed; z-index: 2147483647; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 460px; max-width: calc(100vw - 32px); max-height: 80vh; overflow: auto;
+  padding: 16px; border-radius: 12px; background: #ffffff; color: #000000;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  font-family: system-ui, -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  font-size: 13px; line-height: 1.5;
+}
+.th-ext-d-head { display: flex; justify-content: space-between; align-items: center; font-weight: 800; margin-bottom: 10px; }
+.th-ext-d-x { border: none; background: transparent; font-size: 16px; cursor: pointer; color: #000; line-height: 1; }
+.th-ext-d-row { margin: 4px 0; color: #000; }
+.th-ext-d-row b { font-weight: 700; }
+.th-ext-d-sec { margin: 12px 0 4px 0; font-weight: 800; color: #000; }
+.th-ext-d-list { margin: 4px 0 0 0; padding-left: 18px; color: #000; }
+.th-ext-d-list li { margin: 3px 0; }
+.th-ext-d-ref { background: #f1f5f9; padding: 8px 10px; border-radius: 8px; color: #000; }
+.th-ext-d-src { font-size: 11px; color: #555; text-transform: uppercase; font-weight: 700; }
+.th-ext-d-link { color: #0369a1; text-decoration: underline; margin-left: 6px; }
+.th-ext-d-link:hover { color: #075985; }

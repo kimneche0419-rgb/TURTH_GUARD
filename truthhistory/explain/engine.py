@@ -29,7 +29,9 @@ class ExplainEngine:
                 "editing_artifact_score": round(result.analysis_details.get("artifact_score", 0.0), 4),
                 "semantic_consistency_score": round(result.analysis_details.get("semantic_score", 1.0), 4)
             },
-            "explanations": []
+            "explanations": [],
+            "evidence": (result.analysis_details.get("fact_consistency", {}) or {}).get("evidence_sample", []),
+            "reference": (result.analysis_details.get("fact_consistency", {}) or {}).get("reference") or {},
         }
         
         for anomaly in anomalies:

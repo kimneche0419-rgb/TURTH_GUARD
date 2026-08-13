@@ -33,10 +33,10 @@ function escapeHtml(s) {
   })[c]);
 }
 
-chrome.storage.local.get(DEFAULTS, (s) => {
-  $("apiUrl").value = s.apiUrl;
-  $("apiKey").value = s.apiKey;
-  $("autoScan").checked = !!s.autoScan;
+chrome.storage.local.get([...Object.keys(DEFAULTS), "lastReport", "lastText"], (s) => {
+  $("apiUrl").value = s.apiUrl || DEFAULTS.apiUrl;
+  $("apiKey").value = s.apiKey || "";
+  $("autoScan").checked = s.autoScan !== false;
   if (s.lastReport) renderStatus(s.lastReport);
 });
 

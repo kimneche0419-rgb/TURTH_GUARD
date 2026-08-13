@@ -60,7 +60,42 @@ function buildBanner(report) {
       </span>
     </div>
     <div class="th-ext-reasons">${reasonsHtml}</div>`;
+  wrap.style.cursor = "pointer";
+  wrap.title = "클릭 시 상세 리포트·근거 자료를 표시합니다";
+  wrap.addEventListener("click", () => showDetail(report));
   return wrap;
+}
+function buildDetailPanel(report) {
+  const d = (report && report.decision) || {};
+  const m = (report && report.metrics) || {};
+  const cred = Math.round(((d.credibility_score == null ? 1 : d.credibility_score)) * 100);
+  const reasons = (report && report.explanations ? report.explanations : []).map((e) => e.message).filter(Boolean);
+  const evidence = (report && report.evidence) || [];
+  const ref = (report && report.reference) || {};
+  const panel = document.createElement("div");
+  panel.id = "th-ext-detail";
+  const refHtml = ref.snippet
+    ? `<div class="th-ext-d-sec">📖 참고 사료 (수정된 진실 근거)</div>
+       <div class="th-ext-d-ref"><span class="th-ext-d-src">${escapeHtml(ref.source || "")}</span> ${escapeHtml(ref.snippet)}
+       ${ref.url ? `<a class="th-ext-d-link" href="${escapeHtml(ref.url)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}</div>` : "";
+  const evHtml = evidence.length
+    ? `<div class="th-ext-d-sec">🔗 근거 자료 웹사이트</div>
+       <ul class="th-ext-d-list">${evidence.map((e) => `<li>${e.url ? `<a class="th-ext-d-link" href="${escapeHtml(e.url)}" target="_blank" rel="noopener">${escapeHtml(e.title || e.source)}</a>` : `<span>${escapeHtml(e.title || e.source)}</span>`} <span class="th-ext-d-src">(${escapeHtml(e.source || "")})</span></li>`).join("")}</ul>` : "";
+  panel.innerHTML =
+    `<div class="th-ext-d-head"><span>🛡️ Truth History 상세 리포트</span><button class="th-ext-d-x">✕</button></div>
+     <div class="th-ext-d-row"><b>신뢰도</b> ${cred}% · ${escapeHtml(d.risk_level || "LOW")} — ${d.is_manipulated ? "역사 왜곡·할루시네이션 의심" : "정상"}</div>
+     <div class="th-ext-d-row"><b>AI 생성/합성 확률</b> ${Math.round(((m.ai_generation_probability == null ? 0 : m.ai_generation_probability)) * 100)}%</div>
+     <div class="th-ext-d-sec">📋 판정 근거</div>
+     <ul class="th-ext-d-list">${reasons.length ? reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("") : "<li>특이 징후 없음</li>"}</ul>
+     ${refHtml}${evHtml}`;
+  panel.querySelector(".th-ext-d-x").onclick = () => panel.remove();
+  return panel;
+}
+
+function showDetail(report) {
+  const old = document.getElementById("th-ext-detail");
+  if (old) old.remove();
+  document.body.appendChild(buildDetailPanel(report));
 }
 
 async function scanNode(node) {
