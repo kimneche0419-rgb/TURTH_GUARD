@@ -54,7 +54,7 @@ function buildBanner(report) {
   wrap.innerHTML =
     `<div class="th-ext-head">
       <span class="th-ext-logo">🛡️ Truth History</span>
-      <span class="th-ext-cred" style="color:${riskColor(level)}">신뢰도 ${cred}% · ${escapeHtml(level)}</span>
+      <span class="th-ext-cred">신뢰도 ${cred}% · ${escapeHtml(level)}</span>
       <span class="th-ext-tag ${d.is_manipulated ? "th-ext-bad" : "th-ext-good"}">
         ${d.is_manipulated ? "역사 왜곡·할루시네이션 의심" : "정상"}
       </span>

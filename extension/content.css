@@ -5,11 +5,11 @@
   padding: 10px 12px;
   border-left: 4px solid #64748b;
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.04);
+  background: #ffffff;
   font-family: system-ui, -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
   font-size: 13px;
   line-height: 1.5;
-  color: #0f172a;
+  color: #000000;
 }
 .th-ext-head {
   display: flex;
@@ -18,8 +18,8 @@
   gap: 10px;
   margin-bottom: 6px;
 }
-.th-ext-logo { font-weight: 700; }
-.th-ext-cred { font-weight: 700; }
+.th-ext-logo { font-weight: 700; color: #000000; }
+.th-ext-cred { font-weight: 700; color: #000000; }
 .th-ext-tag {
   margin-left: auto;
   padding: 2px 8px;
@@ -31,8 +31,8 @@
 .th-ext-tag.th-ext-bad { background: #dc2626; }
 .th-ext-tag.th-ext-good { background: #16a34a; }
 .th-ext-reasons ul { margin: 4px 0 0 0; padding-left: 18px; }
-.th-ext-reasons li { margin: 2px 0; }
-.th-ext-none { margin: 4px 0 0 0; color: #16a34a; }
+.th-ext-reasons li { margin: 2px 0; color: #000000; }
+.th-ext-none { margin: 4px 0 0 0; color: #000000; }
 
 #th-ext-panel {
   position: fixed;
@@ -44,23 +44,23 @@
   padding: 14px;
   border-radius: 12px;
   background: #ffffff;
-  color: #0f172a;
+  color: #000000;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
   font-family: system-ui, -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
   font-size: 13px;
 }
 #th-ext-panel.th-ext-err { border: 2px solid #dc2626; }
-#th-ext-panel .th-ext-hint { color: #64748b; font-size: 12px; margin: 6px 0 0 0; }
+#th-ext-panel .th-ext-hint { color: #000000; font-size: 12px; margin: 6px 0 0 0; }
 #th-ext-panel code { background: #f1f5f9; padding: 1px 4px; border-radius: 4px; }
 .th-ext-close {
   margin-top: 10px;
   width: 100%;
   padding: 6px 10px;
-  border: none;
+  border: 1px solid #0f172a;
   border-radius: 8px;
-  background: #0f172a;
-  color: #fff;
+  background: #ffffff;
+  color: #000000;
   font-size: 12px;
   cursor: pointer;
 }
-.th-ext-close:hover { background: #1e293b; }
+.th-ext-close:hover { background: #f1f5f9; }
