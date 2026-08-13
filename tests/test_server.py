@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from truthhistory_server import app
@@ -8,8 +9,10 @@ from truthhistory_server import app
 class TestTruthHistoryServer(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
-
-    def test_scan_text_endpoint_returns_xai_report(self):
+    @patch("truthhistory.text.evidence.search_wikipedia", return_value=[])
+    @patch("truthhistory.text.evidence.search_duckduckgo", return_value=[])
+    @patch("truthhistory.text.evidence.search_naver", return_value=[])
+    def test_scan_text_endpoint_returns_xai_report(self, _wiki, _ddg, _naver):
         # 한국사 문장을 직접 전송해 XAI 리포트 구조가 반환되는지 검증
         r = self.client.post(
             "/api/v1/scan/text",

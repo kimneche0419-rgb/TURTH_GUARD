@@ -2,6 +2,7 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 from PIL import Image
 import numpy as np
 
@@ -39,7 +40,10 @@ class TestTruthHistoryAnalyzers(unittest.TestCase):
     def tearDown(self):
         self.test_dir.cleanup()
 
-    def test_text_analyzer(self):
+    @patch("truthhistory.text.evidence.search_wikipedia", return_value=[])
+    @patch("truthhistory.text.evidence.search_duckduckgo", return_value=[])
+    @patch("truthhistory.text.evidence.search_naver", return_value=[])
+    def test_text_analyzer(self, _wiki, _ddg, _naver):
         analyzer = TextAnalyzer()
         with open(self.text_path, "r", encoding="utf-8") as f:
             text_content = f.read()

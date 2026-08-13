@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import math
+import os
 import urllib.parse
 from typing import Any, Dict, List, Optional
 import requests
@@ -14,7 +15,9 @@ class TextAnalyzer(BaseAnalyzer):
     def initialize_model(self) -> None:
         self.api_key = self.config.get("api_key")
         self.backend = self.config.get("backend", "local")
-        self.fact_check_api_key = self.config.get("fact_check_api_key")
+        self.fact_check_api_key = self.config.get("fact_check_api_key") or os.environ.get("FACT_CHECK_API_KEY")
+        self.naver_client_id = self.config.get("naver_client_id") or os.environ.get("NAVER_CLIENT_ID")
+        self.naver_client_secret = self.config.get("naver_client_secret") or os.environ.get("NAVER_CLIENT_SECRET")
         
         # 가중치 설정 (합 1.0)
         self.weights = self.config.get("weights", {
@@ -57,8 +60,12 @@ class TextAnalyzer(BaseAnalyzer):
         reasons = []
         if ai_prob > 0.85:
             reasons.append(f"AI 생성 문장 패턴 발견 (확률: {ai_prob * 100:.1f}%)")
-        if consistency_score < 0.4:
-            reasons.append("권위 있는 역사 사료·고증과 배치되는 주장 발견")
+        if consistency_score < 0.4 or fact_results.get("contradiction"):
+            srcs = ", ".join(fact_results.get("sources_used", [])) or "외부 검색"
+            reasons.append(f"외부 검색 증거({srcs})와 상충·불일치 — 역사적 정합성 의심")
+        elif fact_results.get("evidence_count", 0) > 0 and consistency_score >= 0.7:
+            srcs = ", ".join(fact_results.get("sources_used", [])) or "외부 검색"
+            reasons.append(f"외부 검색 증거({srcs})와 정합 — 사료 교차 검증 양호")
         if sensation_index > 0.7:
             reasons.append(f"과장 및 선동적 감정 단어 다수 검출 (선동성 지수: {sensation_index * 100:.1f}%)")
         if not source_results.get("has_valid_source", True):
@@ -83,24 +90,25 @@ class TextAnalyzer(BaseAnalyzer):
 
     def analyze_fact_consistency(self, text: str, context: Optional[str] = None) -> Dict[str, Any]:
         """
-        주장의 정합성을 평가합니다. Google Fact Check API 연동을 활용합니다.
+        외부 검색 증거(DuckDuckGo 키 불필요 / Naver / Google Fact Check)를 병렬 수집하여
+        주장의 역사적 정합성을 평가한다. 증거 키워드 커버리지 + 상충 단서 기반 스코어링.
         """
-        if self.fact_check_api_key:
-            try:
-                # 텍스트의 앞부분에서 대표 키워드 추출 (간이)
-                query = " ".join(text.split()[:5])
-                claims = self._search_fact_check_claims(query)
-                if claims:
-                    # 매칭되는 팩트체크 기사 중 "거짓", "허위" 레이팅이 있는 경우 신뢰 점수 감점
-                    for claim in claims:
-                        review = claim.get("review", "").lower()
-                        if any(x in review for x in ["거짓", "false", "허위", "조작"]):
-                            return {"consistency_score": 0.1, "matched_claims": claims}
-            except Exception:
-                pass
-        
-        # 기본 스코어 리턴
-        return {"consistency_score": 0.8, "matched_claims": []}
+        from truthhistory.text.evidence import build_query, gather_evidence, score_consistency
+
+        query = context or build_query(text)
+        fact_check_fn = self._search_fact_check_claims if self.fact_check_api_key else None
+        evidence = gather_evidence(
+            query=query,
+            naver_client_id=self.naver_client_id,
+            naver_client_secret=self.naver_client_secret,
+            fact_check_fn=fact_check_fn,
+        )
+        result = score_consistency(text, evidence)
+        sources_used = sorted({e.get("source", "?") for e in evidence})
+        result["sources_used"] = sources_used
+        result["evidence_count"] = len(evidence)
+        result["evidence_sample"] = evidence[:3]
+        return result
 
     def analyze_sensationalism(self, text: str) -> Dict[str, Any]:
         """

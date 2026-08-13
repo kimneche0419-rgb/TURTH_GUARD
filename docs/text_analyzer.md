@@ -96,6 +96,27 @@ class AIGenerationDetector:
 
 AI 생성 탐지와 더불어, 검증 대상 한국사 텍스트가 **권위 있는 역사 사료·팩트체크**와 정합성을 갖는지 평가하기 위해 외부 API를 연동합니다. Google Fact Check API는 사료·팩트체크 데이터베이스에서 일치하는 클레임을 검색하고, LLM(Gemini/OpenAI GPT)은 수집된 참조 문서(국사편찬위원회 자료, 교과서 서술, 디지털 사료 등)와 텍스트 간 주장 정합성을 자연어 추론으로 평가합니다. 두 결과는 경량 로컬 추론과 외부 API 연동의 혼합 설계 하에서 취합되어, 픽셀/주파수 기반의 시청각 모듈과 함께 XAI 판정 근거로 제공됩니다.
 
+### 2.0 다중 검색 증거 계층 (구현됨 — `truthhistory/text/evidence.py`)
+`analyze_fact_consistency`는 주장에서 키워드(한국어 조사 자동 제거)를 추출해 여러 검색 소스를 **병렬**로 조회하고, 수집된 증거 스니펫 대비 **키워드 커버리지 + 상충 단서**로 정합성 점수를 산출한다. 증거가 없으면 중립(0.5), 상충 단서(거짓·허위·왜곡 등) 발견 시 정합성을 0.4 이하로 상한한다.
+
+| 소스 | 키 필요 | 비고 |
+| :--- | :--- | :--- |
+| **한국어 위키백과 검색 API** (`ko.wikipedia.org/w/api.php`) | ❌ 불필요 | 1순위 무료 소스, 한국사 사료 정합성에 가장 효과적 |
+| **DuckDuckGo** (Instant Answer API + HTML 스크립트) | ❌ 불필요 | 보조 소스 |
+| **Naver Search API** (`openapi.naver.com`) | ✅ `NAVER_CLIENT_ID/SECRET` | 한국어 웹결과 특화 |
+| **Google Fact Check API** | ✅ `FACT_CHECK_API_KEY` | 기존 팩트체크 데이터베이스 |
+
+```python
+from truthhistory.text.evidence import gather_evidence, score_consistency
+
+# 병렬 증거 수집 → 정합성 점수 산출 (키 불필요 소스만으로도 동작)
+evidence = gather_evidence(query, naver_client_id=None, naver_client_secret=None)
+result = score_consistency(text, evidence)
+# → {"consistency_score": 0.775, "best_coverage": 0.75, "contradiction": False, ...}
+```
+
+> 키 불필요 소스(위키백과·DuckDuckGo)만으로 기본 정합성 검증이 동작하므로, 클라우드 서버리스(Vercel)에서도 추가 설정 없이 정확도가 향상된다.
+
 ### 2.1 Google Fact Check Explorer API 연동
 주요 팩트체크 및 역사 사료 데이터베이스를 쿼리하여, 검증 대상 주장과 일치하는 클레임이 기존에 팩트체크된 내역이 있는지 검색합니다.
 
