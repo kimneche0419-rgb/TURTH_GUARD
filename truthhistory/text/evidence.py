@@ -29,6 +29,25 @@ _KO_STOPWORDS = set(
 _CONTRADICTION_CUES = [
     "거짓", "허위", "틀린", "오류", "잘못", "실제로는", "정정", "사실이 아",
     "다르다", "상충", "왜곡", "조작", "검증되지 않", "루머",
+    "가짜", "환각", "할루시네이션", "아니다", "아니야", "불가능", "없다", "없음",
+    "없는", "허구", "날조", "밈", "사실무근",
+]
+
+# 현대 기술/대상 (역사 시대와 동시 등장 시 시대착오)
+_MODERN_TERMS = [
+    "맥북", "맥북프로", "맥북에어", "아이폰", "아이패드", "갤럭시", "갤럭시폰", "갤럭시탭",
+    "스마트폰", "노트북", "태블릿", "컴퓨터", "피씨", "인터넷", "와이파이", "블루투스",
+    "usb", "이어폰", "에어팟", "스마트워치", "카메라", "전기", "로봇", "드론",
+    "비행기", "자동차", "라디오", "텔레비전", "티비", "유튜브", "트위터", "인스타그램",
+    "틱톡", "ai", "인공지능", "챗gpt", "챗지피티", "gpt", "스마트", "앱",
+]
+
+# 역사 인물/시대/제도 (현대 대상과 동시 등장 시 시대착오)
+_HISTORICAL_MARKERS = [
+    "세종", "세종대왕", "이순신", "장영실", "광개토대왕", "태종", "정조", "영조", "선조",
+    "숙종", "중종", "단종", "조선", "고려", "고구려", "백제", "신라", "발해",
+    "삼국시대", "통일신라", "임진왜란", "병자호란", "한산도대첩", "거북선", "훈민정음",
+    "조선왕조실록", "왕", "대왕", "왕조", "실록", "양반", "왕세자", "사관",
 ]
 
 
@@ -210,6 +229,26 @@ def _normalize_factcheck(claims: List[Dict[str, str]]) -> List[Dict[str, str]]:
         })
     return out
 
+
+
+def detect_anachronism(text: str) -> Dict[str, Any]:
+    """현대 기술/대상이 역사 인물·시대와 동시에 등장하면 시대착오(할루시네이션)로 판정."""
+    lower = (text or "").lower()
+    modern = [m for m in _MODERN_TERMS if m in lower]
+    hist = [h for h in _HISTORICAL_MARKERS if h in (text or "")]
+    if modern and hist:
+        return {
+            "anachronism": True,
+            "modern_terms": modern[:3],
+            "historical_markers": hist[:3],
+        }
+    return {"anachronism": False, "modern_terms": [], "historical_markers": []}
+
+
+def is_debunked(text: str) -> bool:
+    """본문이 해당 내용을 가짜/할루시네이션으로 정정(정정 서술)하는지 검사."""
+    t = text or ""
+    return any(c in t for c in _CONTRADICTION_CUES)
 
 def score_consistency(text: str, evidence: List[Dict[str, Any]]) -> Dict[str, Any]:
     """

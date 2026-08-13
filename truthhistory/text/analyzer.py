@@ -63,9 +63,17 @@ class TextAnalyzer(BaseAnalyzer):
         if consistency_score < 0.4 or fact_results.get("contradiction"):
             srcs = ", ".join(fact_results.get("sources_used", [])) or "외부 검색"
             reasons.append(f"외부 검색 증거({srcs})와 상충·불일치 — 역사적 정합성 의심")
-        elif fact_results.get("evidence_count", 0) > 0 and consistency_score >= 0.7:
+        elif fact_results.get("evidence_count", 0) > 0 and consistency_score >= 0.7 \
+                and not fact_results.get("anachronism", {}).get("anachronism"):
             srcs = ", ".join(fact_results.get("sources_used", [])) or "외부 검색"
             reasons.append(f"외부 검색 증거({srcs})와 정합 — 사료 교차 검증 양호")
+        ana = fact_results.get("anachronism", {})
+        if ana.get("anachronism"):
+            terms = "+".join(ana.get("modern_terms", [])) or "현대 대상"
+            if fact_results.get("debunked"):
+                reasons.append(f"시대착오 주제({terms}) 감지 — 본문이 가짜/할루시네이션으로 정정 서술함")
+            else:
+                reasons.append(f"시대착오(Anachronism) 강력 의심: {terms} 등 현대 대상이 역사 시대와 동시 등장 — 할루시네이션")
         if sensation_index > 0.7:
             reasons.append(f"과장 및 선동적 감정 단어 다수 검출 (선동성 지수: {sensation_index * 100:.1f}%)")
         if not source_results.get("has_valid_source", True):
@@ -93,7 +101,7 @@ class TextAnalyzer(BaseAnalyzer):
         외부 검색 증거(DuckDuckGo 키 불필요 / Naver / Google Fact Check)를 병렬 수집하여
         주장의 역사적 정합성을 평가한다. 증거 키워드 커버리지 + 상충 단서 기반 스코어링.
         """
-        from truthhistory.text.evidence import build_query, gather_evidence, score_consistency
+        from truthhistory.text.evidence import build_query, gather_evidence, score_consistency, detect_anachronism, is_debunked
 
         query = context or build_query(text)
         fact_check_fn = self._search_fact_check_claims if self.fact_check_api_key else None
@@ -104,6 +112,19 @@ class TextAnalyzer(BaseAnalyzer):
             fact_check_fn=fact_check_fn,
         )
         result = score_consistency(text, evidence)
+        # 시대착오(Anachronism) — 현대 기기 + 역사 인물/시대 동시 등장
+        ana = detect_anachronism(text)
+        debunked = is_debunked(text) if ana["anachronism"] else False
+        if ana["anachronism"]:
+            if debunked:
+                # 본문이 가짜/할루시네이션으로 정정 서술 → 과신 방지용 상한만
+                result["consistency_score"] = min(result["consistency_score"], 0.6)
+            else:
+                # 정정 없이 시대착오 주장 → 강한 할루시네이션 신호
+                result["consistency_score"] = min(result["consistency_score"], 0.25)
+                result["contradiction"] = True
+        result["anachronism"] = ana
+        result["debunked"] = debunked
         sources_used = sorted({e.get("source", "?") for e in evidence})
         result["sources_used"] = sources_used
         result["evidence_count"] = len(evidence)
