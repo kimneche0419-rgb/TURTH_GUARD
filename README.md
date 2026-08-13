@@ -34,7 +34,7 @@ Truth History SDK는 텍스트 고증 검증과 시청각(이미지·영상·오
 
 ## 3. 핵심 목표
 * **4대 탐지 모듈 통합 SDK:** 아래 모듈을 단일 규격으로 통합 제공.
-  * **📝 텍스트 고증 검증** — 한국사 텍스트의 AI 생성(Perplexity/Burstiness) 탐지 + 국사편찬위원회·교과서·사료 등 권위 있는 역사 사료·팩트체크 기반 **역사적 정합성 검증**.
+  * **📝 텍스트 고증 검증** — 한국사 텍스트의 AI 생성(Perplexity/Burstiness) 탐지 + 한국어 위키백과·DuckDuckGo·Naver Search·Google Fact Check **외부 검색 증거 병렬 교차 검증** 기반 **역사적 정합성 검증** + 현대 기기·대상이 역사 인물·시대와 동시 등장하는 **시대착오(Anachronism) 할루시네이션 탐지**.
   * **🖼️ ELA 이미지 합성 탐지** — Error Level Analysis 압축 왜곡 + FFT 주파수 노이즈(GAN/Diffusion 격자 아티팩트)로 위조·합성 역사 이미지 탐지.
   * **🎬 딥페이크 페이스 스왑 탐지(영상/정지영상)** — 안면 랜드마크 비대칭 + 프레임 간 temporal jitter로 페이스 스왑 탐지.
   * **🎙️ AI 복제 음성 탐지(오디오)** — MFCC + HNR 주파수 분석으로 합성/클론 음성 탐지(인물 사칭·허위 역사 발언 유포 대응).
@@ -158,7 +158,7 @@ truthhistory/
 ---
 
 ## 9. 향후 확장 로드맵
-* **크롬 확장 프로그램(구현됨) → [extension/](extension/README.md):** ChatGPT/Claude/Gemini 출력의 한국사 할루시네이션을 로컬 Truth History 엔진으로 실시간 교차 검증해 경고 배지를 삽입하고, 우클릭으로 어떤 텍스트든 즉시 검사. (VSCode Extension은 추후 지원)
+* **크롬 확장 프로그램(구현됨) → [extension/](extension/README.md):** ChatGPT/Claude/Gemini/AI Studio 어시스턴트 답변에 **적응형 글자색 배지**(호스트 페이지 라이트/다크 자동 적응)를 삽입해 한국사 할루시네이션을 실시간 교차 검증하고, **배지 클릭 → 상세 리포트 패널**(판정 근거 + 근거 자료 웹사이트 링크 + 참고 사료)을 제공. **우클릭 컨텍스트 메뉴는 Google AI Mode 등 모든 사이트에서 범용 동작**하며, 팝업에서 API 주소/Key/자동스캔 설정과 **최근 검사 결과**를 확인. (VSCode Extension은 추후 지원)
 * **MCP Server 지원:** Agentic AI 환경과 연동하여 AI가 자율적으로 역사 정보를 검증·할루시네이션 자가 교정.
 * **Hugging Face 연동:** 최신 한국어·한국사 특화 모델과 다이렉트 동기화.
 * **실시간 스트림/라이브 분석:** 라이브 방송·실시간 피드의 딥페이크·사칭 음성 검증 아키텍처.

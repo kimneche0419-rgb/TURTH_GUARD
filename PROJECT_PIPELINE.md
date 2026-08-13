@@ -6,7 +6,7 @@ Truth History SDK는 생성형 AI로 인한 **한국 역사 할루시네이션(�
 
 ### 📌 주제 1: 멀티모달 콘텐츠 탐지 및 분석 (Multimodal Content Detection)
 생성형 AI로 왜곡·위조된 다양한 형태의 한국 역사 콘텐츠를 정밀하게 식별하고 변조 여부를 교차 검증하는 핵심 엔진입니다.
-* **텍스트 고증 검증 (Text)**: Perplexity, Burstiness 등을 산출하여 생성형 AI가 작성한 한국사 텍스트인지(역사 할루시네이션) 판별하고, 국사편찬위원회·교과서·사료 등 권위 있는 역사 사료 및 팩트체크 기반으로 **역사적 정합성** 검증
+* **텍스트 고증 검증 (Text)**: Perplexity, Burstiness 등을 산출하여 생성형 AI가 작성한 한국사 텍스트인지(역사 할루시네이션) 판별하고, 국사편찬위원회·교과서·사료 등 권위 있는 역사 사료 및 팩트체크 기반으로 **역사적 정합성** 검증. **시대착오(Anachronism) 할루시네이션 탐지**(현대 기기·대상 × 역사 인물·시대 동시 등장 → 정정 여부에 따라 정합성 상한/강력 의심 플래그) + **외부 검색 증거 교차 검증**(한국어 위키백과·DuckDuckGo·Naver Search·Google Fact Check 병렬 조회 → 증거 커버리지·상충 단서 스코어링, 응답에 출처 URL `evidence`/`reference` 노출)
 * **ELA 이미지 합성 탐지 (Image)**: Error Level Analysis 압축 왜곡 검출 + FFT 주파수 노이즈 분석(GAN/Diffusion 격자 아티팩트)을 통한 위조·합성 역사 이미지 탐지
 * **딥페이크 페이스 스왑 + AI 복제 음성 (Video/Audio)**: 안면 랜드마크 비대칭 및 프레임 간 temporal jitter로 페이스 스왑 탐지, MFCC/HNR 주파수 분석으로 인물 사칭·허위 역사 발언 유포용 AI 복제 음성 탐지
 

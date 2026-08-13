@@ -117,6 +117,26 @@ result = score_consistency(text, evidence)
 
 > 키 불필요 소스(위키백과·DuckDuckGo)만으로 기본 정합성 검증이 동작하므로, 클라우드 서버리스(Vercel)에서도 추가 설정 없이 정확도가 향상된다.
 
+### 2.0.1 시대착오(Anachronism) 할루시네이션 탐지 (구현됨 — `truthhistory/text/evidence.py`)
+외부 증거 기반 정합성 검증과 직렬로 동작하는 **규칙 기반 빠른 필터**. 텍스트에 **현대 기기·대상**(맥북·아이폰·아이패드·스마트폰·노트북·인터넷·AI·GPT·자동차·비행기 등)과 **역사 인물·시대·제도**(세종·이순신·장영실·조선·고려·임진왜란·거북선·훈민정음·조선왕조실록 등)가 **동시에 등장**하면 시대착오(Anachronism)로 판정합니다.
+
+`detect_anachronism(text)`가 두 단어군의 교집합을 검출한 뒤, `is_debunked(text)`로 본문이 해당 내용을 **정정 서술**(가짜·할루시네이션·불가능·허구·날조·사실무근 등 상충 단서 포함)하는지 확인합니다. `TextAnalyzer._analyze_fact_consistency`는 결과에 따라 정합성 점수 상한을 적용합니다:
+
+| 조건 | 정합성 점수 처리 | 판정 근거(reasons) |
+| :--- | :--- | :--- |
+| 정정 서술 있음(`is_debunked`) | 상한 **0.6** (과신 방지) | "시대착오 주제(...) 감지 — 본문이 가짜/할루시네이션으로 정정 서술함" |
+| 정정 없는 주장 | 상한 **0.25** + `contradiction=True` | "시대착오(Anachronism) 강력 의심: ... 등 현대 대상이 역사 시대와 동시 등장 — 할루시네이션" (빨간 플래그) |
+
+```python
+from truthhistory.text.evidence import detect_anachronism, is_debunked
+
+ana = detect_anachronism("세종대왕이 아이폰으로 거북선 설계도를 인터넷에 올렸다.")
+# → {"anachronism": True, "modern_terms": ["아이폰", "인터넷"], "historical_markers": ["세종", "거북선"]}
+is_debunked("이는 가짜이며 할루시네이션이다.")  # → True (정정 서술)
+```
+
+> 시대착오 탐지는 외부 검색 지연을 기다리지 않고 즉시 동작하므로, 명백한 할루시네이션(예: "이순신이 스마트폰으로 명량해전을 지휘했다")을 가장 빠르게 차단하는 1차 방어선 역할을 합니다.
+
 ### 2.1 Google Fact Check Explorer API 연동
 주요 팩트체크 및 역사 사료 데이터베이스를 쿼리하여, 검증 대상 주장과 일치하는 클레임이 기존에 팩트체크된 내역이 있는지 검색합니다.
 
