@@ -93,7 +93,7 @@ npm install
 | `th init` | `.\th init` | **프로젝트 환경 초기화** | `truthhistory.json`, `uploads/` 폴더 및 `.env`(API 키 입력용) 생성. 기존 설정 초기화 시 `--force` 적용 (기존 `.env`는 덮어쓰지 않음) |
 | `th dev` | `.\th dev` | **통합 개발 서버 실행** | 백엔드 API(8000) 및 프론트엔드 대시보드(5173)를 각각 다른 새 창으로 동시 구동 (추천) |
 | `th api` | `.\th api` | **백엔드 API 서버 단독 실행** | FastAPI 서버를 현재 세션에서 실행 (`--port <포트>`, `--host <호스트>` 옵션 지원) |
-| `th web` | `.\th web` | **대시보드 웹 서버 단독 실행** | 프론트엔드 대시보드를 현재 세션에서 단독 실행 |
+| `th web` | `.\th web` | **대시보드 로컬 개발 서버 단독 실행** | 프론트엔드를 현재 세션에서 단독 실행(5173, 핫 리로드). **프로덕션은 Vercel 라이브 배포 사용** — 로컬 프론트 수정·전체 멀티미디어 기능 테스트용 (Vercel 백엔드는 멀티미디어 미지원) |
 | `th cli <파일/URL>` | `.\th cli <파일/URL>` | **CLI 역사 콘텐츠 신뢰도 분석 (단축)** | `th scan` 명령어의 단축 별칭으로 터미널에서 신속하게 분석 (옵션 동일) |
 | `th scan <파일/URL>` | `.\th scan <파일/URL>` | **CLI 역사 콘텐츠 신뢰도 분석** | 파일 또는 웹사이트 주소를 분석하여 보고서를 출력합니다. (`-f text/json/table` 출력 형식, `-c <설정JSON>` 설정 파일 지정, `--threshold` 판정 임계점 지원) |
 | `th mcp` | `.\th mcp` | **MCP Stdio 표준 서버 실행** | LLM Agent(예: Claude)와 연동하기 위해 stdio 기반 JSON-RPC로 대화하는 MCP 서버 구동 |
