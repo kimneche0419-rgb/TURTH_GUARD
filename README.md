@@ -48,6 +48,8 @@ Truth History SDK는 텍스트 고증 검증과 시청각(이미지·영상·오
 
 Truth History SDK 및 대시보드를 신속하게 실행하는 방법입니다.
 
+> **라이브 데모:** [https://platy-rho.vercel.app](https://platy-rho.vercel.app) — React 대시보드와 FastAPI 서버리스 백엔드가 단일 도메인에 통합 배포되어 있습니다. 텍스트 고증 검증/URL 스캔은 라이브에서 즉시 사용 가능하며, 이미지·영상·오디오 분석은 서버리스 의존성 제약상 로컬 실행을 권장합니다 ([DEPLOY.md](DEPLOY.md) 참고).
+
 ### 4.1 설치 및 환경 설정 (Installation & Setup)
 
 프로젝트 저장소를 로컬에 복제하고 필요한 백엔드(Python) 및 프론트엔드(Node.js) 의존성을 구성합니다:
@@ -92,9 +94,20 @@ npm install
 | `th dev` | `.\th dev` | **통합 개발 서버 실행** | 백엔드 API(8000) 및 프론트엔드 대시보드(5173)를 각각 다른 새 창으로 동시 구동 (추천) |
 | `th api` | `.\th api` | **백엔드 API 서버 단독 실행** | FastAPI 서버를 현재 세션에서 실행 (`--port <포트>`, `--host <호스트>` 옵션 지원) |
 | `th web` | `.\th web` | **대시보드 웹 서버 단독 실행** | 프론트엔드 대시보드를 현재 세션에서 단독 실행 |
-| `th cli <파일/URL>` | `.\th cli <파일/URL>` | **CLI 역사 콘텐츠 신뢰도 분석 (단축)** | `th scan` 명령어의 단축 별칭으로 터미널에서 신속하게 분석 |
-| `th scan <파일/URL>` | `.\th scan <파일/URL>` | **CLI 역사 콘텐츠 신뢰도 분석** | 파일 또는 웹사이트 주소를 분석하여 보고서를 출력합니다. (`-f json`, `-f table` 및 `--threshold` 지원) |
+| `th cli <파일/URL>` | `.\th cli <파일/URL>` | **CLI 역사 콘텐츠 신뢰도 분석 (단축)** | `th scan` 명령어의 단축 별칭으로 터미널에서 신속하게 분석 (옵션 동일) |
+| `th scan <파일/URL>` | `.\th scan <파일/URL>` | **CLI 역사 콘텐츠 신뢰도 분석** | 파일 또는 웹사이트 주소를 분석하여 보고서를 출력합니다. (`-f text/json/table` 출력 형식, `-c <설정JSON>` 설정 파일 지정, `--threshold` 판정 임계점 지원) |
 | `th mcp` | `.\th mcp` | **MCP Stdio 표준 서버 실행** | LLM Agent(예: Claude)와 연동하기 위해 stdio 기반 JSON-RPC로 대화하는 MCP 서버 구동 |
+
+### 4.4 외부 연동 환경 변수 (선택)
+텍스트 고증 검증의 **외부 검색 증거 수집**과 **REST API 보안**에 사용되는 환경 변수입니다(모두 선택 사항):
+
+| 환경 변수 | 설명 |
+|:---|:---|
+| `TRUTHHISTORY_API_KEY` | REST API 요청 인증(`X-API-Key` 헤더)에 사용. 설정 시 API Key가 일치하는 요청만 허용하며, 미설정 시 인증 없이 개방 |
+| `FACT_CHECK_API_KEY` | Google Fact Check Search API 키 (팩트체크 증거 소스 활성화) |
+| `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | Naver 통합 웹검색 API 자격증명 (한국어·한국사 특화 증거 수집) |
+
+> 한국어 위키백과·DuckDuckGo 증거 검색은 별도 API 키 없이 동작합니다.
 
 
 
@@ -120,19 +133,24 @@ npm install
 
 ## 6. 프로젝트 디렉토리 구조
 ```plaintext
-truthhistory/
- ├── text/           # 한국사 텍스트 고증 검증 (AI 생성 탐지 + 역사적 정합성 검증)
- ├── image/          # ELA 이미지 합성 탐지 (위조·합성 역사 이미지)
- ├── video/          # 딥페이크 페이스 스왑 탐지 (랜드마크 비대칭·temporal jitter)
- ├── audio/          # AI 복제 음성 탐지 (MFCC + HNR)
- ├── explain/        # 판정 근거 추출(픽셀/주파수 노이즈) 및 XAI 포맷팅 엔진
- ├── cli/            # 명령줄 인터페이스 로직 (th)
- ├── models/         # 로컬 구동용 경량 모델 파일 및 메타데이터
- ├── datasets/       # 테스트 및 평가용 데이터셋
- ├── docs/           # 상세 개발자 설계 문서 및 가이드
- ├── tests/          # 단위/통합 테스트 코드
- ├── extension/      # 크롬 확장 프로그램 (LLM 역사 할루시네이션 가드)
- └── examples/       # 활용 예제 (REST API 등)
+TURTH_GUARD/
+ ├── truthhistory/            # SDK 코어 패키지 (pip install -e .)
+ │    ├── text/               # 한국사 텍스트 고증 검증 (AI 생성 탐지 + 외부 검색 증거 정합성 + 시대착오 탐지)
+ │    ├── image/              # ELA 이미지 합성 탐지 (ELA 압축 왜곡 + FFT 주파수 노이즈)
+ │    ├── video/              # 딥페이크 페이스 스왑 탐지 (랜드마크 비대칭·temporal jitter)
+ │    ├── audio/              # AI 복제 음성 탐지 (MFCC + HNR)
+ │    ├── explain/            # 판정 근거 추출 및 XAI 포맷팅 엔진
+ │    ├── cli/                # 명령줄 인터페이스 로직 (th)
+ │    └── utils/              # URL 파싱·웹 본문 추출 등 공통 유틸리티
+ ├── truthhistory_server.py   # FastAPI 게이트웨이 (REST API /api/v1/scan/text|url|media)
+ ├── truthhistory_mcp.py      # MCP stdio 서버 (LLM Agent 연동)
+ ├── api/index.py             # Vercel 서버리스 엔트리 (FastAPI ASGI 래핑)
+ ├── src/                     # React/Vite 프론트엔드 대시보드
+ ├── extension/               # 크롬 확장 프로그램 (LLM 역사 할루시네이션 가드)
+ ├── tests/                   # 단위/통합 테스트 코드
+ ├── docs/                    # 상세 개발자 설계 문서 및 가이드
+ ├── th.ps1 / th.bat          # Windows CLI 런처 (.venv th.exe 래퍼)
+ └── run.bat                  # 백엔드+프론트엔드 일괄 기동 스크립트
 ```
 
 ---
@@ -148,7 +166,7 @@ truthhistory/
 
 ## 8. 오픈소스 기술적 특징
 * **MIT License:** 상업·비상업 사용에 제약 없는 유연한 라이선스로 자유로운 자사 임베딩·2차 창작 허용.
-* **Python Package (PyPI):** 손쉬운 설치 및 의존성 관리.
+* **pip 설치 지원 (`pip install -e .[text|image|video|audio|all]`):** 저장소 클론 후 필요한 모듈의 의존성만 extras로 선택 설치하여 가벼운 도입 가능.
 * **경량 로컬 추론 + 외부 API 연동 혼합 설계:** 경량 로컬 추론으로 기본 탐지를 처리하고 무거운 검증만 외부 API로 보내, 자체 검증 레이어 구축 비용을 **80% 이상 절감**.
 * **지연 로딩(Lazy Loading) 모듈러 구조:** 사용하지 않는 모듈(이미지/영상/오디오)은 로드하지 않아 가볍고 빠른 도입 가능.
 * **CLI & REST API / MCP 예제 제공:** 다양한 서비스 아키텍처와 Agentic AI 환경에 즉시 통합 가능.
@@ -157,9 +175,15 @@ truthhistory/
 
 ---
 
-## 9. 향후 확장 로드맵
-* **크롬 확장 프로그램(구현됨) → [extension/](extension/README.md):** ChatGPT/Claude/Gemini/AI Studio 어시스턴트 답변에 **적응형 글자색 배지**(호스트 페이지 라이트/다크 자동 적응)를 삽입해 한국사 할루시네이션을 실시간 교차 검증하고, **배지 클릭 → 상세 리포트 패널**(판정 근거 + 근거 자료 웹사이트 링크 + 참고 사료)을 제공. **우클릭 컨텍스트 메뉴는 Google AI Mode 등 모든 사이트에서 범용 동작**하며, 팝업에서 API 주소/Key/자동스캔 설정과 **최근 검사 결과**를 확인. (VSCode Extension은 추후 지원)
-* **MCP Server 지원:** Agentic AI 환경과 연동하여 AI가 자율적으로 역사 정보를 검증·할루시네이션 자가 교정.
+## 9. 구현 완료 통합 환경 및 향후 확장 로드맵
+
+### 9.1 구현 완료
+* **크롬 확장 프로그램 → [extension/](extension/README.md):** ChatGPT/Claude/Gemini/AI Studio 어시스턴트 답변에 **적응형 글자색 배지**(호스트 페이지 라이트/다크 자동 적응)를 삽입해 한국사 할루시네이션을 실시간 교차 검증하고, **배지 클릭 → 상세 리포트 패널**(판정 근거 + 근거 자료 웹사이트 링크 + 참고 사료)을 제공. **우클릭 컨텍스트 메뉴는 모든 사이트에서 범용 동작**하며, 팝업에서 API 주소/Key/자동스캔 임계값 설정과 **최근 검사 결과**를 확인.
+* **MCP 서버 (`th mcp`):** stdio 기반 JSON-RPC로 Claude 등 LLM 에이전트와 직접 통신하여 Agentic AI 환경에서 역사 정보 자율 검증·할루시네이션 자가 교정 지원.
+* **Vercel 라이브 배포:** React 대시보드 + FastAPI 서버리스 백엔드를 단일 도메인([https://platy-rho.vercel.app](https://platy-rho.vercel.app))에 통합 배포 → [DEPLOY.md](DEPLOY.md).
+
+### 9.2 향후 확장 로드맵
+* **VSCode Extension:** 에디터 내 한국사 텍스트 실시간 고증 검증.
 * **Hugging Face 연동:** 최신 한국어·한국사 특화 모델과 다이렉트 동기화.
 * **실시간 스트림/라이브 분석:** 라이브 방송·실시간 피드의 딥페이크·사칭 음성 검증 아키텍처.
 * **한국사 사료·팩트체크 DB 고도화:** 국사편찬위원회·교과서·사료 기반 정합성 검증 커버리지 지속 확대.

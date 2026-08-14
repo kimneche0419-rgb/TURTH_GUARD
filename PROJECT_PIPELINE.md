@@ -18,7 +18,7 @@ Truth History SDK는 생성형 AI로 인한 **한국 역사 할루시네이션(�
 
 ### 📌 주제 3: 유연한 통합 환경 및 시스템 확장성 (Integration & Scalability)
 뉴스·SNS·교육 시스템 등 누구나 자사 인프라에 한국 역사 신뢰성 검증을 손쉽게 임베딩·확장할 수 있는 유연한 아키텍처를 제공합니다.
-* **사용자 친화적 인터페이스**: 단일 CLI 도구(`th scan`) 및 REST API, 대시보드를 통한 즉각적인 교차 검증 지원
+* **사용자 친화적 인터페이스**: 단일 CLI 도구(`th scan`) 및 REST API, 대시보드, **크롬 확장 프로그램**(ChatGPT/Claude/Gemini/AI Studio 실시간 가드 + 모든 사이트 우클릭 검사)을 통한 즉각적인 교차 검증 지원
 * **지연 로딩 모듈러 + 혼합 추론 (Model Agnostic)**: 지연 로딩(Lazy Loading) 모듈러 구조로 필요 모듈만 적재하며, 경량 로컬 추론과 Hugging Face 등 외부 API 연동을 혼합 설계하여 자체 검증 레이어 구축 비용 **80% 이상 절감**
 * **Agentic AI 연동 (MCP) + MIT 라이선스**: MCP(Model Context Protocol) 서버를 지원하여 Claude 등 LLM 에이전트와 직접 통신·자율적 역사 정보 검증 연동, MIT 라이선스로 자사 규격에 맞춘 자유로운 임베딩/확장 보장
 
@@ -32,23 +32,24 @@ Truth History SDK는 생성형 AI로 인한 **한국 역사 할루시네이션(�
 graph TD
     %% 1. 입출력 계층
     Input[입력 소스\n한국사 텍스트 / 역사 이미지 / 영상 / 오디오]
-    Client[클라이언트 연동\nCLI / 대시보드 / REST API / MCP]
+    Client[클라이언트 연동\nCLI / 대시보드 / REST API / MCP / 크롬 확장]
     
     Input --> Client
     
     %% 2. 게이트웨이 및 라우팅 계층
-    Client --> API_GW(게이트웨이 및 라우터)
+    Client --> API_GW(게이트웨이 및 라우터\nX-API-Key 인증 (선택))
     
     %% 3. 멀티모달 분석 계층 (Multimodal Analyzer)
     subgraph 3. Multimodal Analyzer [멀티모달 교차 검증 계층]
-        API_GW --> Text_Mod[텍스트 고증 검증\n- AI 생성 탐지/역사 정합성]
+        API_GW --> Text_Mod[텍스트 고증 검증\n- AI 생성 탐지 / 시대착오 Anachronism 탐지]
         API_GW --> Img_Mod[ELA/주파수 노이즈\n- 합성 역사 이미지 탐지]
         API_GW --> Vid_Mod[페이스 스왑/AI 복제 음성\n- temporal jitter/MFCC·HNR]
     end
     
     %% 4. 외부/내부 모델 플러그인 계층
-    Text_Mod -.-> Model_Pool[(모델 풀: 경량 로컬 추론 & 외부 API 연동)]
-    Img_Mod -.-> Model_Pool
+    Evidence[외부 검색 증거 소스\n한국어 위키백과 / DuckDuckGo\nNaver Search / Google Fact Check]
+    Text_Mod -.-> Evidence
+    Img_Mod -.-> Model_Pool[(모델 풀: 경량 로컬 추론 & 외부 API 연동)]
     Vid_Mod -.-> Model_Pool
     
     %% 5. XAI 및 신뢰도 점수 산출 계층
@@ -57,13 +58,13 @@ graph TD
         Img_Mod --> XAI_Engine
         Vid_Mod --> XAI_Engine
         XAI_Engine --> Score_Calc[신뢰도/위조 위험도 정량 스코어링]
-        XAI_Engine --> Evidence_Ext[판정 근거 추출\n픽셀 위치·주파수 노이즈 패턴·랜드마크 오프셋]
+        XAI_Engine --> Evidence_Ext[판정 근거 추출\n픽셀 위치·주파수 노이즈·랜드마크 오프셋·증거 출처 URL]
     end
     
     %% 6. 결과 출력
     Score_Calc --> Output_JSON[표준화된 구조적 응답\nJSON 형식 (판정 근거 포함)]
     Evidence_Ext --> Output_JSON
     
-    Output_JSON --> Dashboard((프론트엔드 대시보드\n시각화 및 보고서))
-    Output_JSON --> External_App((외부 연동 서비스\n뉴스/교육 플랫폼 - 한국사 신뢰성 가드레일))
+    Output_JSON --> Dashboard((프론트엔드 대시보드\n시각화 및 보고서\nVercel 라이브 배포))
+    Output_JSON --> External_App((외부 연동 서비스\n뉴스/교육 플랫폼·크롬 확장 실시간 가드\n- 한국사 신뢰성 가드레일))
 ```
