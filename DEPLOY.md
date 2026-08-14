@@ -40,13 +40,11 @@ curl -X POST https://platy-rho.vercel.app/api/v1/scan/text \
 
 ---
 
-## 크롬 확장 프로그램 → 배포 URL 연결
-백엔드를 로컬(`th api`) 대신 배포 URL로 쓰려면:
-1. `chrome://extensions` → 🛡️ 팝업 클릭
-2. **API 엔드포인트**를 `https://platy-rho.vercel.app` 로 변경 → **설정 저장**
-3. (host_permissions가 `http://*/*`, `https://*/*` 이라 재로드만 하면 즉시 동작)
-
-이제 로컬 백엔드 없이도 ChatGPT/Claude/Gemini 어디서든 역사 할루시네이션 검증 가능.
+## 크롬 확장 프로그램 → 배포 URL 연결 (자동)
+확장 프로그램은 `extension/background.js`의 `API_BASE` 상수가 배포 URL을 **직접 하드코딩**합니다.
+- 배포 URL이 바뀌면 `API_BASE` 상수 하나만 수정
+- 로컬 백엔드로 확장을 개발할 때는 `API_BASE = "http://localhost:8000"`으로 변경
+- 사용자 측 설정(팝업)은 필요 없음 — 설치만 하면 ChatGPT/Claude/Gemini 어디서든 역사 할루시네이션 검증 동작
 
 ---
 

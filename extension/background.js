@@ -1,22 +1,12 @@
 // Truth History SDK - background service worker
 // LLM 역사 할루시네이션 검증 요청을 Truth History REST API로 중계한다.
 
-const DEFAULTS = {
-  apiUrl: "https://platy-rho.vercel.app",
-  autoScan: true,
-  threshold: 0.5,
-};
-
-function getSettings() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(DEFAULTS, (s) => resolve({ ...DEFAULTS, ...s }));
-  });
-}
+// 배포된 Truth History 백엔드(Vercel) — 확장 프로그램은 별도 백엔드/API 주소 설정 없이 즉시 동작.
+// 로컬 백엔드로 개발하려면 이 상수를 http://localhost:8000 로 변경.
+const API_BASE = "https://platy-rho.vercel.app";
 
 async function scanText(text) {
-  const { apiUrl } = await getSettings();
-  const base = (apiUrl || DEFAULTS.apiUrl).replace(/\/+$/, "");
-  const res = await fetch(`${base}/api/v1/scan/text`, {
+  const res = await fetch(`${API_BASE}/api/v1/scan/text`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text }),

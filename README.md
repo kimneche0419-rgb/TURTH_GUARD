@@ -115,7 +115,87 @@ npm install
 
 ---
 
-## 5. 상세 설계 및 구현 가이드 (Detailed Design Guides)
+## 5. Vercel 배포 가이드 (프로덕션 배포)
+
+프론트엔드(React 대시보드)와 백엔드(FastAPI 서버리스 함수)를 **Vercel 단일 프로젝트 하나로 같은 도메인에 배포**하는 전체 과정입니다. 배포가 완료되면 `https://<project>.vercel.app` 형태의 URL을 받게 되며, **크롬 확장 프로그램은 이 URL을 백엔드로 자동 사용**하므로 사용자 측 설정이 전혀 필요 없습니다.
+
+### 5.1 배포 아키텍처 및 구성 파일
+
+| 파일 | 역할 |
+|:---|:---|
+| `vercel.json` | `/api/v1/:path*` 요청을 Python 서버리스 함수로 **rewrite 라우팅**. 프론트와 백엔드가 같은 도메인이라 CORS 이슈가 없음 |
+| `api/index.py` | FastAPI 앱(`truthhistory_server:app`)을 Vercel Python 런타임이 감지할 수 있는 **ASGI 엔트리**로 노출 |
+| `requirements.txt` | 서버리스 함수 의존성 — **의도적으로 경량화**(opencv/numpy/pillow/librosa 미포함, 아래 §5.5 참고) |
+| `.vercelignore` | `.venv`, `node_modules`, `tests`, `pyproject.toml` 등 배포 불필요 파일 제외 → 빌드 크기/시간 절감 |
+| `src/` + `index.html` + `vite.config.ts` | React/Vite 프론트엔드 — Vercel이 자동 감지하여 정적 호스팅(`/`) |
+
+프론트엔드는 빌드 모드에서 **상대경로(같은 출처)** 로 API를 호출하고, 개발 모드에서만 `localhost:8000`을 호출하도록 `src/App.tsx`에 자동 전환 로직이 포함되어 있어 환경변수 설정이 필요 없습니다.
+
+### 5.2 사전 준비
+
+1. **Vercel 계정** 생성 — [https://vercel.com/signup](https://vercel.com/signup) (GitHub 계정으로 가입 권장)
+2. **Node.js 18 이상** 설치 (Vercel CLI 구동용)
+3. 저장소를 GitHub에 푸시 완료 (`git push origin main`)
+
+### 5.3 배포 단계 (Vercel CLI)
+
+```bash
+# 1. Vercel CLI 설치 및 로그인
+npm i -g vercel
+vercel login
+
+# 2. 프로젝트 루트에서 Vercel 프로젝트로 연결/생성
+vercel link
+# → "Set up and deploy?" Y / 어떤 범위에 둘지 선택 / 프레임워크 프리셋은 Vite 자동 감지
+
+# 3. (선택) 외부 검색 증거용 환경 변수 설정 — 대시보드에서도 가능
+#    Settings → Environment Variables 에서 추가 (모두 선택 사항)
+#      FACT_CHECK_API_KEY     : Google Fact Check Search API 키
+#      NAVER_CLIENT_ID        : Naver 통합 웹검색 API
+#      NAVER_CLIENT_SECRET    : Naver 통합 웹검색 API
+
+# 4. 프로덕션 배포
+vercel --prod --yes
+```
+
+배포가 끝나면 터미널에 **프로덕션 URL**이 출력됩니다 (예: `https://platy-rho.vercel.app`). 이후 코드 변경 시에도 `git push` 후 `vercel --prod --yes` 한 줄로 재배포됩니다.
+
+### 5.4 배포 검증
+
+```bash
+# 대시보드 로딩 확인 (HTTP 200)
+curl -I https://platy-rho.vercel.app/
+
+# 텍스트 고증 검증 API 확인 (XAI JSON 응답)
+curl -X POST https://platy-rho.vercel.app/api/v1/scan/text \
+  -H "Content-Type: application/json" \
+  -d '{"text":"이순신 장군은 임진왜란 때 거북선으로 한산도 대첩에서 승리했다."}'
+```
+
+| 엔드포인트 | 서버리스 동작 |
+|:---|:---|
+| `POST /api/v1/scan/text` | ✅ 정상 (AI 생성 어휘 다양도 + 외부 검색 증거 정합성 + 시대착오 + 선동성 + 출처) |
+| `POST /api/v1/scan/url` | ✅ 정상 (웹페이지 본문 크롤링 → 고증 검증) |
+| `POST /api/v1/scan/media` | ⚠️ 중립 폴백 (이미지·영상·오디오 의존성 미포함, §5.5 참고) |
+
+### 5.5 서버리스 제약 (중요)
+
+Vercel 서버리스 함수에는 **225MB 번들 크기 제한**이 있습니다. 그래서 `requirements.txt`에서 멀티미디어 분석용 대형 의존성(opencv-python, numpy, pillow, torch, librosa)을 제외하고 텍스트 고증 검증 중심으로 배포합니다.
+
+* 이미지(ELA)·영상(딥페이크)·오디오(AI 복제 음성) 분석이 필요한 경우 → **로컬 실행**(`th api` + 대시보드) 또는 **Render / Railway / Fly.io** 같은 컨테이너 호스트에 `requirements.txt`에 위 의존성을 추가한 뒤 `truthhistory_server:app`을 그대로 구동하면 의존성 제한 없이 전체 기능을 서비스할 수 있습니다.
+* 콜드스타트: 서버리스 특성상 유휴 상태 후 첫 요청이 수 초 지연될 수 있습니다.
+
+### 5.6 크롬 확장 프로그램 연동 (자동)
+
+확장 프로그램(`extension/`)은 `background.js`의 `API_BASE` 상수가 **배포 URL을 직접 가리키도록 하드코딩**되어 있습니다. 즉:
+
+* 사용자는 **백엔드 실행도, API 주소 설정도 필요 없이** 확장 설치만 하면 즉시 검증 동작
+* 백엔드 주소를 바꾸려면 `extension/background.js`의 `API_BASE` 상수 하나만 수정
+* 로컬 백엔드로 확장을 개발/디버깅하려면 `API_BASE = "http://localhost:8000"`으로 변경
+
+> 자세한 운영/트러블슈팅 기록(의존성 크기 제한 해결 과정 등)은 [DEPLOY.md](DEPLOY.md)를 참고하세요.
+
+## 6. 상세 설계 및 구현 가이드 (Detailed Design Guides)
 
 본 프레임워크를 직접 빌드하거나 커스터마이징하려는 개발자를 위해 모듈별 초상세 구현 가이드를 마련하였습니다.
 
@@ -132,7 +212,7 @@ npm install
 
 ---
 
-## 6. 프로젝트 디렉토리 구조
+## 7. 프로젝트 디렉토리 구조
 ```plaintext
 TURTH_GUARD/
  ├── truthhistory/            # SDK 코어 패키지 (pip install -e .)
@@ -156,7 +236,7 @@ TURTH_GUARD/
 
 ---
 
-## 7. 예상 활용 분야
+## 8. 예상 활용 분야
 * **뉴스 플랫폼 / 언론사:** 역사 관련 제보 자료·기사의 사료 교차 검증, 합성 사진·사칭 발언 사전 차단.
 * **교육 플랫폼 / 학교 / 교과서 출판:** 교재·학습 자료·과제의 한국사 고증 오류 및 AI 생성 위변조 검증.
 * **SNS / 커뮤니티:** 역사 왜곡 콘텐츠(조작 사진·딥페이크·사칭 음성) 확산 실시간 모니터링·차단.
@@ -165,7 +245,7 @@ TURTH_GUARD/
 
 ---
 
-## 8. 오픈소스 기술적 특징
+## 9. 오픈소스 기술적 특징
 * **MIT License:** 상업·비상업 사용에 제약 없는 유연한 라이선스로 자유로운 자사 임베딩·2차 창작 허용.
 * **pip 설치 지원 (`pip install -e .[text|image|video|audio|all]`):** 저장소 클론 후 필요한 모듈의 의존성만 extras로 선택 설치하여 가벼운 도입 가능.
 * **경량 로컬 추론 + 외부 API 연동 혼합 설계:** 경량 로컬 추론으로 기본 탐지를 처리하고 무거운 검증만 외부 API로 보내, 자체 검증 레이어 구축 비용을 **80% 이상 절감**.
@@ -175,14 +255,14 @@ TURTH_GUARD/
 * **GitHub 기반 협업:** 이슈 및 PR을 통한 지속적인 생태계 고도화 및 한국사 특화 모델 업데이트.
 
 ---
-## 9. 구현 완료 통합 환경 및 향후 확장 로드맵
+## 10. 구현 완료 통합 환경 및 향후 확장 로드맵
 
-### 9.1 구현 완료
-* **크롬 확장 프로그램 → [extension/](extension/README.md):** ChatGPT/Claude/Gemini/AI Studio 어시스턴트 답변에 **적응형 글자색 배지**(호스트 페이지 라이트/다크 자동 적응)를 삽입해 한국사 할루시네이션을 실시간 교차 검증하고, **배지 클릭 → 상세 리포트 패널**(판정 근거 + 근거 자료 웹사이트 링크 + 참고 사료)을 제공. **우클릭 컨텍스트 메뉴는 모든 사이트에서 범용 동작**하며, 팝업에서 API 주소/Key/자동스캔 임계값 설정과 **최근 검사 결과**를 확인.
+### 10.1 구현 완료
+* **크롬 확장 프로그램 → [extension/](extension/README.md):** ChatGPT/Claude/Gemini/AI Studio 어시스턴트 답변에 **적응형 글자색 배지**(호스트 페이지 라이트/다크 자동 적응)를 삽입해 한국사 할루시네이션을 실시간 교차 검증하고, **배지 클릭 → 상세 리포트 패널**(판정 근거 + 근거 자료 웹사이트 링크 + 참고 사료)을 제공. **우클릭 컨텍스트 메뉴는 모든 사이트에서 범용 동작**하며, **Vercel 배포 백엔드를 자동 사용(설정 불필요)**, 팝업에서 자동스캔 토글과 **최근 검사 결과**를 확인.
 * **MCP 서버 (`th mcp`):** stdio 기반 JSON-RPC로 Claude 등 LLM 에이전트와 직접 통신. **대표 도구 `scan_text`는 크롬 확장 프로그램과 동일한 모티브**로 LLM 답변 텍스트의 역사 할루시네이션을 실시간 검증(AI 생성 확률·외부 검색 증거 정합성·시대착오 탐지·판정 근거/증거 출처 URL 반환)하며, `scan_file`로 멀티미디어 파일 검증 지원.
 * **Vercel 라이브 배포:** React 대시보드 + FastAPI 서버리스 백엔드를 단일 도메인([https://platy-rho.vercel.app](https://platy-rho.vercel.app))에 통합 배포 → [DEPLOY.md](DEPLOY.md).
 
-### 9.2 향후 확장 로드맵
+### 10.2 향후 확장 로드맵
 * **VSCode Extension:** 에디터 내 한국사 텍스트 실시간 고증 검증.
 * **Hugging Face 연동:** 최신 한국어·한국사 특화 모델과 다이렉트 동기화.
 * **실시간 스트림/라이브 분석:** 라이브 방송·실시간 피드의 딥페이크·사칭 음성 검증 아키텍처.
@@ -190,7 +270,7 @@ TURTH_GUARD/
 
 ---
 
-## 10. 기대 효과
+## 11. 기대 효과
 * **딥페이크 사기·역사 할루시네이션 실시간 차단 → 정보 환경 투명성 확보, 사회적 불신 최소화:** 위변조 역사 콘텐츠와 그럴듯한 거짓 역사 정보를 생성·유포 단계에서 조기 차단합니다.
 * **자체 검증 레이어 구축 비용 80% 이상 절감:** 파편화된 탐지 모듈을 단일 SDK로 규격화하고, 경량 로컬 추론 + 외부 API 연동 혼합 설계를 채택해 자체 검증 시스템 구축 비용을 대폭 낮춥니다.
 * **자사 규격 맞춤 임베딩/확장 → 뉴스·SNS·교육 시스템에 손쉬운 도입:** 지연 로딩 모듈러 구조와 MIT 라이선스 덕분에 각자의 인프라 규격에 맞춰 손쉽게 임베딩·확장할 수 있습니다.
