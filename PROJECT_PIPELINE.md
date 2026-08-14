@@ -37,7 +37,7 @@ graph TD
     Input --> Client
     
     %% 2. 게이트웨이 및 라우팅 계층
-    Client --> API_GW(게이트웨이 및 라우터\nX-API-Key 인증 (선택))
+    Client --> API_GW(게이트웨이 및 라우터)
     
     %% 3. 멀티모달 분석 계층 (Multimodal Analyzer)
     subgraph 3. Multimodal Analyzer [멀티모달 교차 검증 계층]

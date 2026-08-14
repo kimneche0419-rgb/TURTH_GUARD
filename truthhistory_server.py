@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 import os
 import shutil
-import json
 import tempfile
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Security, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel
 from typing import Optional
 
@@ -32,43 +30,6 @@ app.add_middleware(
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "truthhistory_uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# API Key 보안 스키마 정의
-API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-def get_configured_api_key() -> Optional[str]:
-    # 1. 환경 변수 우선 순위
-    env_key = os.environ.get("TRUTHHISTORY_API_KEY")
-    if env_key:
-        return env_key
-    
-    # 2. 설정 파일 fallback
-    config_path = "truthhistory.json"
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-                key = config.get("api_key")
-                if key and key.strip():
-                    return key
-        except Exception:
-            pass
-    return None
-
-async def verify_api_key(
-    x_api_key: Optional[str] = Security(API_KEY_HEADER),
-    api_key: Optional[str] = None
-):
-    configured_key = get_configured_api_key()
-    if not configured_key:
-        return
-        
-    provided_key = x_api_key or api_key
-    if not provided_key or provided_key != configured_key:
-        raise HTTPException(
-            status_code=401,
-            detail="유효하지 않은 API Key입니다. 인증되지 않은 접근입니다."
-        )
-
 def get_media_type_by_ext(ext: str) -> str:
     ext = ext.lower()
     if ext in ["txt", "md"]: return "text"
@@ -80,8 +41,7 @@ def get_media_type_by_ext(ext: str) -> str:
 @app.post("/api/v1/scan/media")
 async def scan_media(
     file: UploadFile = File(...),
-    transcript: Optional[str] = Form(None),
-    _ = Depends(verify_api_key)
+    transcript: Optional[str] = Form(None)
 ):
     """
     업로드된 미디어 파일을 저장하고, 적절한 Truth History 분석기를 로드하여 XAI 표준 JSON 규격을 반환합니다.
@@ -142,8 +102,7 @@ class ScanURLPayload(BaseModel):
 
 @app.post("/api/v1/scan/url")
 async def scan_url(
-    payload: ScanURLPayload,
-    _ = Depends(verify_api_key)
+    payload: ScanURLPayload
 ):
     """
     지정된 URL 주소의 웹페이지 본문 텍스트를 크롤링하여 Truth History로 스캐닝한 후 XAI JSON 결과를 반환합니다.
@@ -188,10 +147,7 @@ class TextScanPayload(BaseModel):
 
 
 @app.post("/api/v1/scan/text")
-async def scan_text(
-    payload: TextScanPayload,
-    _ = Depends(verify_api_key)
-):
+async def scan_text(payload: TextScanPayload):
     """
     원시 텍스트 본문을 직접 받아 한국사 고증 검증(AI 생성·역사 정합성·선동성) 후
     XAI 표준 JSON 리포트를 반환합니다. (크롬 확장 프로그램 및 외부 API 연동용)

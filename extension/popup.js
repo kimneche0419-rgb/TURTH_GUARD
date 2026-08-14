@@ -1,4 +1,4 @@
-const DEFAULTS = { apiUrl: "https://platy-rho.vercel.app", apiKey: "", autoScan: true, threshold: 0.5 };
+const DEFAULTS = { apiUrl: "https://platy-rho.vercel.app", autoScan: true, threshold: 0.5 };
 
 
 const $ = (id) => document.getElementById(id);
@@ -35,7 +35,6 @@ function escapeHtml(s) {
 
 chrome.storage.local.get([...Object.keys(DEFAULTS), "lastReport", "lastText"], (s) => {
   $("apiUrl").value = s.apiUrl || DEFAULTS.apiUrl;
-  $("apiKey").value = s.apiKey || "";
   $("autoScan").checked = s.autoScan !== false;
   if (s.lastReport) renderStatus(s.lastReport);
 });
@@ -43,7 +42,6 @@ chrome.storage.local.get([...Object.keys(DEFAULTS), "lastReport", "lastText"], (
 $("save").addEventListener("click", () => {
   const payload = {
     apiUrl: $("apiUrl").value.trim() || DEFAULTS.apiUrl,
-    apiKey: $("apiKey").value.trim(),
     autoScan: $("autoScan").checked,
   };
   chrome.storage.local.set(payload, () => {

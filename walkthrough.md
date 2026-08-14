@@ -53,22 +53,7 @@
 
 ---
 
-## 5. API Key 보안 메커니즘 구축 및 CLI/GUI 연동
-
-* **FastAPI 백엔드 보안 헤더 검증**:
-  * [truthhistory_server.py](truthhistory_server.py)에 `X-API-Key` 헤더 및 `api_key` 쿼리 파라미터를 검증하는 FastAPI Security Dependency 레이어를 적용했습니다.
-  * 서버 설정 파일(`truthhistory.json`) 또는 환경 변수(`TRUTHHISTORY_API_KEY`)에 API Key가 설정되어 있을 때만 강제 검증을 실행하여 하위 호환성(기본값은 퍼블릭)을 유지했습니다.
-  * 권한이 유효하지 않을 시 `401 Unauthorized` 에러를 반환합니다.
-* **React GUI 대시보드 UI 통합**:
-  * [src/App.tsx](src/App.tsx) 대시보드 상단에 마스크 처리된 API Key 입력 제어부를 설계했습니다.
-  * 입력된 API Key는 브라우저의 `localStorage`에 자동 보관 및 영구 지속됩니다.
-  * 분석 요청 전송 시 `X-API-Key` 헤더를 Axios 호출 헤더에 자동 바인딩합니다. 만약 401 Unauthorized가 발생할 경우 한글로 명확한 안내 얼럿을 출력합니다.
-* **CLI 초기화 템플릿 제공**:
-  * `th init` 시 생성되는 설정 구조에 `"api_key": ""` 필드를 기본 제공하여 사용자가 쉽게 API Key를 지정하고 서버를 구동하도록 개선하였습니다.
-
----
-
-## 6. MCP (Model Context Protocol) 서버 구축 및 연동
+## 5. MCP (Model Context Protocol) 서버 구축 및 연동
 
 * **Stdio 기반 MCP 서버 구축**:
   * [truthhistory_mcp.py](truthhistory_mcp.py) 파일을 생성하여 JSON-RPC 2.0 표준을 준수하는 Stdio 통신 방식의 MCP 서버를 순수 파이썬(의존성 없음)으로 완벽하게 구현했습니다.
@@ -82,7 +67,7 @@
 
 ---
 
-## 7. 인터넷 웹사이트 URL 신뢰도 스캔 기능 구축
+## 6. 인터넷 웹사이트 URL 신뢰도 스캔 기능 구축
 
 * **HTML 본문 텍스트 추출 파서 탑재**:
   * [truthhistory/utils/url_parser.py](truthhistory/utils/url_parser.py)에 Python 표준 모듈인 `html.parser.HTMLParser`를 응용하여 외부 라이브러리 의존성 없이 스크립트, 스타일, 네비게이션바 등 불필요 태그를 제외한 핵심 본문만 크롤링하는 유틸리티를 제작했습니다.

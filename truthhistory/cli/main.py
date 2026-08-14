@@ -169,8 +169,7 @@ def init(force: bool):
         "media_directories": {
             "uploads": "uploads"
         },
-        "explain_format": "text",
-        "api_key": ""
+        "explain_format": "text"
     }
 
     
@@ -189,7 +188,7 @@ def init(force: bool):
     console.print("\n[bold]다음 단계:[/bold]")
     console.print(" 1. `th scan <파일경로>` 명령어로 파일을 분석해보세요.")
     console.print(" 2. `th dev` 명령어로 대시보드와 서버를 한 번에 기동하세요.")
-    console.print(" 3. 필요시 `.env`에 API 키(TRUTHHISTORY_API_KEY 등)를 입력하세요.")
+    console.print(" 3. 필요시 `.env`에 외부 검색 증거용 API 키(FACT_CHECK_API_KEY, NAVER_CLIENT_ID/SECRET)를 입력하세요.")
 
 @main.command(name="dev")
 def dev():
@@ -284,9 +283,7 @@ def _create_env_file_if_absent() -> bool:
         return False
     template = (
         "# Truth History SDK 환경 변수 (이 파일은 .gitignore로 Git에 커밋되지 않음)\n"
-        "\n"
-        "# REST API 요청 인증 키 - 설정 시 X-API-Key 헤더가 일치하는 요청만 허용\n"
-        "TRUTHHISTORY_API_KEY=\n"
+        "# 아래 키들은 REST API 인증이 아닌 외부 검색 증거 수집용 (모두 선택)\n"
         "\n"
         "# Google Fact Check Search API 키 (선택)\n"
         "FACT_CHECK_API_KEY=\n"

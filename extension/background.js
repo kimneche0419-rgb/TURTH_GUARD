@@ -3,7 +3,6 @@
 
 const DEFAULTS = {
   apiUrl: "https://platy-rho.vercel.app",
-  apiKey: "",
   autoScan: true,
   threshold: 0.5,
 };
@@ -15,13 +14,11 @@ function getSettings() {
 }
 
 async function scanText(text) {
-  const { apiUrl, apiKey } = await getSettings();
+  const { apiUrl } = await getSettings();
   const base = (apiUrl || DEFAULTS.apiUrl).replace(/\/+$/, "");
-  const headers = { "Content-Type": "application/json" };
-  if (apiKey && apiKey.trim()) headers["X-API-Key"] = apiKey.trim();
   const res = await fetch(`${base}/api/v1/scan/text`, {
     method: "POST",
-    headers,
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text }),
   });
   if (!res.ok) {

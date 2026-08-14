@@ -51,15 +51,6 @@ export default function App() {
   const [result, setResult] = useState<ScanResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [apiKey, setApiKey] = useState(() => {
-    return localStorage.getItem('th_api_key') || '';
-  });
-
-  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setApiKey(value);
-    localStorage.setItem('th_api_key', value);
-  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -94,11 +85,6 @@ export default function App() {
     setResult(null);
 
     try {
-      const headers: Record<string, string> = {};
-      if (apiKey.trim()) {
-        headers['X-API-Key'] = apiKey.trim();
-      }
-
       if (activeTab === 'file') {
         const formData = new FormData();
         formData.append('file', file!);
@@ -107,23 +93,20 @@ export default function App() {
         }
         const response = await axios.post<ScanResult>(
           `${API_BASE}/api/v1/scan/media`,
-          formData,
-          { headers }
+          formData
         );
         setResult(response.data);
       } else {
         const response = await axios.post<ScanResult>(
           `${API_BASE}/api/v1/scan/url`,
-          { url: url.trim() },
-          { headers }
+          { url: url.trim() }
         );
         setResult(response.data);
       }
-    } catch (err: any) {
-      if (err.response && err.response.status === 401) {
-        alert('인증 실패: 유효하지 않은 API Key이거나 키가 입력되지 않았습니다.');
-      } else if (err.response && err.response.status === 400 && err.response.data?.detail) {
-        alert(`분석 실패: ${err.response.data.detail}`);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number; data?: { detail?: string } } };
+      if (axiosErr.response?.status === 400 && axiosErr.response.data?.detail) {
+        alert(`분석 실패: ${axiosErr.response.data.detail}`);
       } else {
         alert('분석을 시작하지 못했습니다. 백엔드 FastAPI 서버가 기동 중인지 확인하십시오.');
       }
@@ -181,26 +164,6 @@ export default function App() {
         <p style={{ color: '#94a3b8', fontSize: '15px', margin: 0 }}>
           한국사 왜곡·할루시네이션 및 멀티미디어(이미지·영상·음성) 위변조 통합 탐지 대시보드
         </p>
-        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-          <label style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>API Key (옵션):</label>
-          <input 
-            type="password" 
-            value={apiKey} 
-            onChange={handleApiKeyChange}
-            placeholder="서버 보안 설정 시에만 입력 (기본값: 불필요)" 
-            style={{
-              backgroundColor: '#1e293b',
-              border: '1px solid #334155',
-              borderRadius: '6px',
-              padding: '6px 12px',
-              fontSize: '13px',
-              color: '#f8fafc',
-              width: '240px',
-              outline: 'none',
-              textAlign: 'center'
-            }}
-          />
-        </div>
       </header>
 
       <main style={{ width: '100%', maxWidth: '850px' }}>

@@ -99,11 +99,10 @@ npm install
 | `th mcp` | `.\th mcp` | **MCP Stdio 표준 서버 실행** | LLM Agent(예: Claude)와 연동하기 위해 stdio 기반 JSON-RPC로 대화하는 MCP 서버 구동 |
 
 ### 4.4 외부 연동 환경 변수 (선택)
-텍스트 고증 검증의 **외부 검색 증거 수집**과 **REST API 보안**에 사용되는 환경 변수입니다(모두 선택 사항):
+텍스트 고증 검증의 **외부 검색 증거 수집**에 사용되는 환경 변수입니다(모두 선택 사항):
 
 | 환경 변수 | 설명 |
 |:---|:---|
-| `TRUTHHISTORY_API_KEY` | REST API 요청 인증(`X-API-Key` 헤더)에 사용. 설정 시 API Key가 일치하는 요청만 허용하며, 미설정 시 인증 없이 개방 |
 | `FACT_CHECK_API_KEY` | Google Fact Check Search API 키 (팩트체크 증거 소스 활성화) |
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | Naver 통합 웹검색 API 자격증명 (한국어·한국사 특화 증거 수집) |
 

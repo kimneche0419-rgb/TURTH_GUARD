@@ -61,12 +61,11 @@ class TestTruthHistoryCLI(unittest.TestCase):
             self.assertTrue(os.path.exists("truthhistory.json"))
             self.assertTrue(os.path.exists("uploads"))
             
-            # truthhistory.json 내부에 api_key 속성이 초기값("")으로 존재하는지 확인
+            # truthhistory.json에 API 키 인증 필드가 더 이상 존재하지 않는지 확인 (기능 삭제)
             import json
             with open("truthhistory.json", "r", encoding="utf-8") as f:
                 config_data = json.load(f)
-            self.assertIn("api_key", config_data)
-            self.assertEqual(config_data["api_key"], "")
+            self.assertNotIn("api_key", config_data)
 
             
             # 2. 두 번째 실행: 덮어쓰기 옵션(force) 없이 실행 시 예외 발생 검증
