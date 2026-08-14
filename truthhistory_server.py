@@ -11,7 +11,9 @@ from typing import Optional
 
 import truthhistory
 from truthhistory.explain.engine import ExplainEngine
-from truthhistory.utils import fetch_url_text
+from truthhistory.utils import fetch_url_text, load_env
+
+load_env()  # 프로젝트 루트 .env → OS 환경 변수 (기존 환경 변수 우선)
 
 app = FastAPI(
     title="Truth History REST API Gateway",

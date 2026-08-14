@@ -12,5 +12,8 @@ import sys
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
+from truthhistory.utils import load_env
+
+load_env()  # 로컬/컨테이너 실행 시 .env 지원 (Vercel에서는 대시보드 환경 변수 사용)
 
 from truthhistory_server import app  # noqa: E402,F401  (FastAPI ASGI 인스턴스)

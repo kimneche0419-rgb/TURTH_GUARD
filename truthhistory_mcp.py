@@ -7,6 +7,9 @@ import traceback
 # Ensure we can import truthhistory
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 import truthhistory
+from truthhistory.utils import load_env
+
+load_env()  # 프로젝트 루트 .env → OS 환경 변수 (기존 환경 변수 우선)
 
 def log_debug(msg):
     # Log to stderr since stdout is used for JSON-RPC messages

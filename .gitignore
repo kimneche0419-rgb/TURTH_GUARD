@@ -28,5 +28,6 @@ Thumbs.db
 uploads/
 temp_ela_*
 truthhistory.json
+.env
 
 .vercel

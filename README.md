@@ -81,7 +81,7 @@ npm install
 
 
 ### 4.2 기본 환경 초기화
-작업 공간 내에 설정 파일(`truthhistory.json`)과 미디어 수집 폴더(`uploads/`)를 준비합니다:
+작업 공간 내에 설정 파일(`truthhistory.json`), 미디어 수집 폴더(`uploads/`), 시크릿 보관용 `.env` 파일을 준비합니다:
 * **PowerShell:** `.\th init`
 * **CMD:** `th init`
 
@@ -90,7 +90,7 @@ npm install
 
 | 명령어 (CMD) | 명령어 (PowerShell) | 설명 | 주요 특징 및 옵션 |
 |:---|:---|:---|:---|
-| `th init` | `.\th init` | **프로젝트 환경 초기화** | `truthhistory.json` 및 `uploads/` 폴더 생성. 기존 설정 초기화 시 `--force` 적용 |
+| `th init` | `.\th init` | **프로젝트 환경 초기화** | `truthhistory.json`, `uploads/` 폴더 및 `.env`(API 키 입력용) 생성. 기존 설정 초기화 시 `--force` 적용 (기존 `.env`는 덮어쓰지 않음) |
 | `th dev` | `.\th dev` | **통합 개발 서버 실행** | 백엔드 API(8000) 및 프론트엔드 대시보드(5173)를 각각 다른 새 창으로 동시 구동 (추천) |
 | `th api` | `.\th api` | **백엔드 API 서버 단독 실행** | FastAPI 서버를 현재 세션에서 실행 (`--port <포트>`, `--host <호스트>` 옵션 지원) |
 | `th web` | `.\th web` | **대시보드 웹 서버 단독 실행** | 프론트엔드 대시보드를 현재 세션에서 단독 실행 |
@@ -108,6 +108,8 @@ npm install
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | Naver 통합 웹검색 API 자격증명 (한국어·한국사 특화 증거 수집) |
 
 > 한국어 위키백과·DuckDuckGo 증거 검색은 별도 API 키 없이 동작합니다.
+
+**`.env` 파일 지원:** CLI(`th`), REST API 서버(`th api`), MCP 서버(`th mcp`)는 기동 시 프로젝트 루트의 `.env` 파일을 자동으로 읽어 위 환경 변수를 주입합니다(`th init`으로 생성, 템플릿: [`.env.example`](./.env.example)). `.env`는 `.gitignore`에 등록되어 **Git에 커밋되지 않으므로** API 키 노출을 방지합니다. 이미 설정된 OS 환경 변수가 `.env` 값보다 우선하며, Vercel 배포 환경에서는 Vercel 대시보드의 Environment Variables를 사용합니다([DEPLOY.md](DEPLOY.md)).
 
 
 

@@ -7,7 +7,9 @@ from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from truthhistory import detect_text, detect_image, detect_video, detect_audio
-from truthhistory.utils import fetch_url_text
+from truthhistory.utils import fetch_url_text, load_env
+
+load_env()  # 프로젝트 루트 .env → OS 환경 변수 (기존 환경 변수 우선)
 
 console = Console()
 
@@ -152,8 +154,9 @@ def init(force: bool):
         console.print("덮어쓰려면 [bold cyan]--force[/bold cyan] 옵션을 사용하십시오.")
         raise click.ClickException("Config file already exists")
 
-    # 2. uploads 디렉터리 생성
+    # 2. uploads 디렉터리 및 .env(비밀 키, Git 커밋 제외) 생성
     os.makedirs("uploads", exist_ok=True)
+    env_created = _create_env_file_if_absent()
     
     # 3. 설정 데이터 작성
     default_config = {
@@ -176,9 +179,12 @@ def init(force: bool):
     console.print("[bold green]Success:[/bold green] Truth History SDK 환경 초기화 완료!")
     console.print(f" - 생성됨: [cyan]{config_path}[/cyan]")
     console.print(" - 생성됨: [cyan]uploads/[/cyan] 디렉터리")
+    if env_created:
+        console.print(" - 생성됨: [cyan].env[/cyan] (API 키 입력용, .gitignore 제외 대상)")
     console.print("\n[bold]다음 단계:[/bold]")
     console.print(" 1. `th scan <파일경로>` 명령어로 파일을 분석해보세요.")
     console.print(" 2. `th dev` 명령어로 대시보드와 서버를 한 번에 기동하세요.")
+    console.print(" 3. 필요시 `.env`에 API 키(TRUTHHISTORY_API_KEY 등)를 입력하세요.")
 
 @main.command(name="dev")
 def dev():
@@ -266,8 +272,31 @@ def mcp():
         console.print(f"[bold red]MCP 서버 실행 실패:[/bold red] {str(e)}")
         raise click.ClickException(f"Failed to start MCP server: {str(e)}")
 
+def _create_env_file_if_absent() -> bool:
+    """.env 파일이 없을 때만 템플릿 생성(기존 키 보호). 생성 여부 반환."""
+    env_path = ".env"
+    if os.path.exists(env_path):
+        return False
+    template = (
+        "# Truth History SDK 환경 변수 (이 파일은 .gitignore로 Git에 커밋되지 않음)\n"
+        "\n"
+        "# REST API 요청 인증 키 - 설정 시 X-API-Key 헤더가 일치하는 요청만 허용\n"
+        "TRUTHHISTORY_API_KEY=\n"
+        "\n"
+        "# Google Fact Check Search API 키 (선택)\n"
+        "FACT_CHECK_API_KEY=\n"
+        "\n"
+        "# Naver 통합 웹검색 API 자격증명 (선택)\n"
+        "NAVER_CLIENT_ID=\n"
+        "NAVER_CLIENT_SECRET=\n"
+    )
+    try:
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.write(template)
+        return True
+    except Exception as e:
+        console.print(f"[bold yellow]경고:[/bold yellow] `.env` 생성 실패: {str(e)}")
+        return False
+
 if __name__ == "__main__":
     main()
-
-
-
