@@ -36,6 +36,20 @@ def handle_initialize(request_id):
 def handle_list_tools(request_id):
     tools = [
         {
+          "name": "scan_text",
+          "description": "크롬 확장 프로그램과 동일한 모티브로, LLM 답변 등 한국사 텍스트의 역사 할루시네이션을 실시간 검증합니다. AI 생성 확률·외부 검색 증거(위키백과/DuckDuckGo/Naver/Google Fact Check) 기반 정합성·시대착오(Anachronism)·선동성과 판정 근거·증거 출처 URL을 반환합니다.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string",
+                "description": "검증할 텍스트 문자열 (예: LLM이 생성한 한국사 답변)"
+              }
+            },
+            "required": ["text"]
+          }
+        },
+        {
           "name": "scan_file",
           "description": "지정된 경로의 파일(텍스트 고증, 이미지 합성, 영상 딥페이크, 오디오 복제 음성)의 위변조·왜곡 신뢰도를 스캔하여 XAI 종합 보고서를 반환합니다.",
           "inputSchema": {
@@ -47,20 +61,6 @@ def handle_list_tools(request_id):
               }
             },
             "required": ["path"]
-          }
-        },
-        {
-          "name": "scan_text",
-          "description": "한국사 텍스트 본문의 AI 생성(할루시네이션) 확률·역사적 정합성·선동성 지수 및 이상 징후를 직접 실시간 분석합니다.",
-          "inputSchema": {
-            "type": "object",
-            "properties": {
-              "text": {
-                "type": "string",
-                "description": "분석할 텍스트 문자열 내용"
-              }
-            },
-            "required": ["text"]
           }
         }
     ]

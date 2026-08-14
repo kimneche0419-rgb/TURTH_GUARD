@@ -25,15 +25,18 @@ def main():
 @click.option("--threshold", type=float, default=0.5, help="변조 위험 판정 임계점")
 def scan(target_path: str, config: str, format: str, threshold: float):
     """
-    지정된 파일(텍스트, 이미지, 비디오, 오디오) 또는 웹사이트 URL의 변조 신뢰도를 스캔합니다.
+    지정된 파일(텍스트, 이미지, 비디오, 오디오), 웹사이트 URL 또는 텍스트 본문(확장 프로그램과 동일한 LLM 답변 즉시 검증)의 변조 신뢰도를 스캔합니다.
     """
     is_url = target_path.startswith("http://") or target_path.startswith("https://")
-    if not is_url and not os.path.exists(target_path):
-        console.print(f"[bold red]에러:[/bold red] 파일 또는 경로가 존재하지 않습니다: {target_path}")
-        raise click.BadParameter(f"Path '{target_path}' does not exist.")
-        
+    # 크롬 확장 프로그램 모티브: 파일/URL이 아니면 입력 문자열 자체를 텍스트 본문으로 직접 고증 검증
+    direct_text = not is_url and not os.path.exists(target_path)
+    if direct_text:
+        console.print("[dim]파일/URL이 아니므로 입력 문자열을 텍스트 본문으로 직접 분석합니다 (확장 프로그램과 동일한 실시간 고증 검증).[/dim]")
+
     if is_url:
         file_ext = "url"
+    elif direct_text:
+        file_ext = "txt"
     else:
         file_ext = target_path.split(".")[-1].lower()
     
@@ -48,6 +51,8 @@ def scan(target_path: str, config: str, format: str, threshold: float):
             if is_url:
                 content = fetch_url_text(target_path)
                 result = detect_text(content)
+            elif direct_text:
+                result = detect_text(target_path)
             elif file_ext in ["txt", "md"]:
                 with open(target_path, "r", encoding="utf-8") as f:
                     content = f.read()

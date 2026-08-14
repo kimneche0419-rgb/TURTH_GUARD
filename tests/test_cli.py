@@ -126,6 +126,13 @@ class TestTruthHistoryCLI(unittest.TestCase):
         self.assertIn("정상 콘텐츠", result.output)
         mock_fetch.assert_called_once_with("https://example.com/news/123")
 
+    def test_cli_scan_direct_text_input(self):
+        # 확장 프로그램 모티브: 파일/URL이 아닌 문자열을 텍스트 본문으로 직접 검증
+        result = self.runner.invoke(scan, ["이것은 정상적인 공인 뉴스 기사 내용입니다. 출처는 https://news.or.kr 입니다."])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("직접 분석", result.output)
+        self.assertIn("정상 콘텐츠", result.output)
+
 if __name__ == "__main__":
     unittest.main()
 
