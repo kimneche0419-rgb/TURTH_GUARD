@@ -41,7 +41,7 @@
 | 2.4 | **오디오 스트리밍 분석** — `th stream --audio` (라이브 마이크/스트림 청크별 복제 음성 탐지) | `StreamingAudioAnalyzer` + 청크 타임라인 (영상 스트리밍과 동일 규격) | ★★☆ |
 | 2.5 | **대시보드 스트리밍 탭** — React에 [파일 업로드/URL] 탭과 별도 [실시간 스트리밍] 탭, 청크 타임라인 차트 | `/api/v1/scan/stream` 연동 UI + 청크별 게이지 시각화 | ★☆☆ |
 | 2.6 | **MCP 스트리밍 도구** — `scan_video_stream` 도구 추가 | Claude MCP 클라이언트에서 청크 타임라인 반환 확인 | ★☆☆ |
-| 2.7 | **Hugging Face 연동** — 한국어 GPT 감지기(예: korean-ai-detector) 로컬 다운로드 경로 지원 | `backend: "hf"` 설정 시 Perplexity 폴백 대신 실모델 사용 | ★☆☆ |
+| 2.7 | ~~Hugging Face 연동~~ → **OpenRouter 무료 LLM 고증 심사(완료)** — `:free` 모델로 한국사 텍스트 할루시네이션 심사 | ✅ 1차 구현 완료(`truthhistory/text/llm.py` + `OPENROUTER_API_KEY` .env). 키 발급 후 1.1 벤치마크로 실측 정확도 검증 남음 |
 
 ## Phase 3 — 생태계·운영 기반 (10월 ~ )
 

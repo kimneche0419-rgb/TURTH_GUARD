@@ -177,7 +177,7 @@ def verify_chronology(text: str) -> Dict[str, Any]:
                 else:
                     contradictions.append({
                         **claim, "expected": list(span),
-                        "detail": f"{label}은(는) {_format_year(span[0])}~{_format_year(span[1])} 사이 — {_format_year(y)} 주장은 시대와 상충",
+                        "detail": f"『{label}』 {_format_year(span[0])}~{_format_year(span[1])} 사이 — {_format_year(y)} 주장은 시대와 상충",
                     })
             for cs, ce in centuries:
                 claim = {"sentence": sentence, "subject": label, "claim_century": (cs, ce)}
@@ -186,7 +186,7 @@ def verify_chronology(text: str) -> Dict[str, Any]:
                 else:
                     contradictions.append({
                         **claim, "expected": list(span),
-                        "detail": f"{label}은(는) {_format_year(span[0])}~{_format_year(span[1])} 사이 — {cs//100 + 1}세기 주장은 시대와 상충",
+                        "detail": f"『{label}』 {_format_year(span[0])}~{_format_year(span[1])} 사이 — {cs//100 + 1}세기 주장은 시대와 상충",
                     })
 
         for fig in _matched_figures(sentence):
