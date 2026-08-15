@@ -1,13 +1,16 @@
 // Truth History SDK - content script
 // 지원 LLM 사이트의 어시스턴트 메시지를 관찰하여 한국사 고증 검증 배지를 삽입한다.
+(() => {
+  if (window.__TRUTH_HISTORY_INJECTED__) return;
+  window.__TRUTH_HISTORY_INJECTED__ = true;
 
-const SITE_SELECTORS = {
-  "chatgpt.com": ['[data-message-author-role="assistant"]', 'article[data-testid^="conversation-turn"] .markdown:last-child'],
-  "chat.openai.com": ['[data-message-author-role="assistant"]'],
-  "claude.ai": ['[data-testid="assistant-message"]', 'div.font-claude-message', 'div.prose', '[data-testid="turn"]'],
-  "gemini.google.com": ['message-content', 'model-response', '.model-response-text', '.response-container-content', '.markdown'],
-  "aistudio.google.com": ['.ms-en-GB', '.markdown', 'ms-chat-turn'],
-};
+  const SITE_SELECTORS = {
+    "chatgpt.com": ['[data-message-author-role="assistant"]', 'article[data-testid^="conversation-turn"] .markdown:last-child'],
+    "chat.openai.com": ['[data-message-author-role="assistant"]'],
+    "claude.ai": ['[data-testid="assistant-message"]', 'div.font-claude-message', 'div.prose', '[data-testid="turn"]'],
+    "gemini.google.com": ['message-content', 'model-response', '.model-response-text', '.response-container-content', '.markdown'],
+    "aistudio.google.com": ['.ms-en-GB', '.markdown', 'ms-chat-turn'],
+  };
 
 function selectorsForHost() {
   const h = location.hostname;
@@ -271,4 +274,5 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "TH_ERROR" && msg.message) showError(msg.message);
 });
 
-start();
+  start();
+})();
