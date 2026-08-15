@@ -112,13 +112,15 @@ function showDetail(report) {
   document.body.appendChild(buildDetailPanel(report));
 }
 
-// 어시스턴트 답변 내 이미지 자동 검증 — 각 이미지 하단에 점수+근거 배지 삽입
+const TH_YT_RE = /(?:youtube\.com\/(?:watch\?[^#]*v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/;
+
+// 어시스턴트 답변 내 이미지 자동 검증 — 전체 이미지 각각 하단에 점수+근거 배지 삽입
 function scanMediaInNode(node) {
   if (!node || !node.querySelectorAll) return;
   const imgs = Array.from(node.querySelectorAll("img")).filter(
     (img) => img.src && !img.dataset.thMediaScanned && (img.naturalWidth || img.width || 999) >= 64
   );
-  for (const img of imgs.slice(0, 3)) {
+  for (const img of imgs) { // 전체 이미지 스캔 (개수 제한 없음)
     img.dataset.thMediaScanned = "1";
     chrome.runtime.sendMessage({ type: "TH_SCAN_MEDIA", url: img.src, kind: "image" }, (resp) => {
       if (chrome.runtime.lastError) return;
@@ -134,12 +136,46 @@ function scanMediaInNode(node) {
   }
 }
 
+// 어시스턴트 답변 내 YouTube 영상 자동 검증 — 링크(a)·임베드(iframe)를 oEmbed 기반으로 검증
+function scanYoutubeInNode(node) {
+  if (!node || !node.querySelectorAll) return;
+  const targets = new Map(); // URL → 삽입 위치 요소
+  node.querySelectorAll('a[href]').forEach((a) => {
+    const href = a.href || "";
+    if (TH_YT_RE.test(href) && !a.dataset.thYtScanned) {
+      a.dataset.thYtScanned = "1";
+      targets.set(href, a);
+    }
+  });
+  node.querySelectorAll("iframe[src]").forEach((f) => {
+    const src = f.src || "";
+    if (TH_YT_RE.test(src) && !f.dataset.thYtScanned) {
+      f.dataset.thYtScanned = "1";
+      targets.set(src, f);
+    }
+  });
+  for (const [url, el] of targets) {
+    chrome.runtime.sendMessage({ type: "TH_SCAN_YOUTUBE", url }, (resp) => {
+      if (chrome.runtime.lastError) return;
+      if (resp && resp.ok && resp.report) {
+        try {
+          const b = buildBanner(resp.report);
+          b.classList.add("th-ext-media");
+          b.insertAdjacentHTML("afterbegin", '<span class="th-ext-logo">🎬 YouTube 영상 검증</span>');
+          el.insertAdjacentElement("afterend", b);
+        } catch (_) { /* 삽입 불가 시 무시 */ }
+      }
+    });
+  }
+}
+
 async function scanNode(node) {
   if (!node || node.dataset.thScanned) return;
   const text = getText(node);
-  if (text.length < 15) { scanMediaInNode(node); return; }
+  if (text.length < 15) { scanMediaInNode(node); scanYoutubeInNode(node); return; }
   node.dataset.thScanned = "1";
   scanMediaInNode(node);
+  scanYoutubeInNode(node);
   const resp = await scanText(text);
   if (resp && resp.ok && resp.report) {
     try {
