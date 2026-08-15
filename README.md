@@ -268,9 +268,13 @@ TURTH_GUARD/
 * **Vercel 라이브 배포:** React 대시보드 + FastAPI 서버리스 백엔드를 단일 도메인([https://platy-rho.vercel.app](https://platy-rho.vercel.app))에 통합 배포 → [DEPLOY.md](DEPLOY.md).
 
 ### 10.2 향후 확장 로드맵
+
+단계별 상세 계획(완료 기준·우선순위·리스크 대응 포함)은 **[ROADMAP.md](ROADMAP.md)** 를 참고하세요. 요약:
+
 * **VSCode Extension:** 에디터 내 한국사 텍스트 실시간 고증 검증.
 * **Hugging Face 연동:** 최신 한국어·한국사 특화 모델과 다이렉트 동기화.
 * **한국사 사료·팩트체크 DB 고도화:** 내장 연표·인물 KB 커버리지 지속 확대 및 국사편찬위원회 공개 데이터(공공데이터포털) 직접 연동.
+* **벤치마크·생태계:** 할루시네이션 샘플 데이터셋 기반 정확도 실증, CI/CD·PyPI·크롬 웹스토어 배포.
 
 ---
 
