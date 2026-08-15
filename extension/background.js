@@ -18,17 +18,26 @@ async function scanText(text) {
   return res.json();
 }
 
-// tabs.sendMessage 실패 시(content script 미주입) executeScript로 즉시 주입 후 재전송
-async function sendToTab(tabId, msg) {
-  try {
-    await chrome.tabs.sendMessage(tabId, msg);
-  } catch (_) {
-    try {
-      await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
-      await chrome.scripting.insertCSS({ target: { tabId }, files: ["content.css"] });
-      setTimeout(() => chrome.tabs.sendMessage(tabId, msg).catch(() => {}), 350);
-    } catch (_e) { /* chrome:// 등 주입 불가 탭 — 무시 */ }
-  }
+// content script가 없는 탭에서도 메시지를 전달.
+// ★ async/await 대신 콜백 전용 API 사용 — Promise를 반환하지 않아
+//   "Uncaught (in promise)" 에러가 원천 발생하지 않음.
+function sendToTab(tabId, msg) {
+  chrome.tabs.sendMessage(tabId, msg, () => {
+    if (!chrome.runtime.lastError) return;  // 성공
+    // 실패(content script 없음) → executeScript로 즉시 주입 후 재전송
+    chrome.scripting.executeScript(
+      { target: { tabId }, files: ["content.js"] },
+      () => {
+        if (chrome.runtime.lastError) return;  // chrome:// 등 주입 불가 — 조용히 무시
+        chrome.scripting.insertCSS({ target: { tabId }, files: ["content.css"] }, () => {});
+        setTimeout(() => {
+          chrome.tabs.sendMessage(tabId, msg, () => {
+            void chrome.runtime.lastError;  // 재시도 실패도 무시
+          });
+        }, 350);
+      }
+    );
+  });
 }
 
 // 이미지·영상 URL을 가져와 /api/v1/scan/media(멀티파트)로 검증한다.
