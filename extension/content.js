@@ -282,11 +282,19 @@
     setTimeout(thRemovePanel, 8000);
   }
 
-  chrome.runtime.onMessage.addListener((msg) => {
+  function thHandleMessage(msg) {
     if (!msg) return;
     if (msg.type === "TH_SHOW_RESULT" && msg.report) thShowResult(msg.report);
     if (msg.type === "TH_ERROR" && msg.message) thShowError(msg.message);
-  });
+  }
 
+  // 1. Chrome 확장 표준 메시지 채널 수신
+  chrome.runtime.onMessage.addListener(thHandleMessage);
+
+  // 2. DOM CustomEvent 및 글로벌 디스패처 (Orphaned 탭 / executeScript 폴백 수신)
+  window.__TH_DISPATCH__ = thHandleMessage;
+  window.addEventListener("TH_MESSAGE", (ev) => {
+    if (ev && ev.detail) thHandleMessage(ev.detail);
+  });
   thStart();
 })();

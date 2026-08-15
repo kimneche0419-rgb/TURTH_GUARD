@@ -35,23 +35,33 @@ async function scanText(text) {
   return res.json();
 }
 
-// content script가 없는 탭에서도 메시지를 전달.
-// ★ async/await + try/catch로 감싸 Promise rejection이 DevTools로 누출되지 않도록 처리.
-async function sendToTab(tabId, msg) {
+// content script 또는 orphaned 탭으로 메시지를 안전하게 전달한다.
+// ★ Chromium 특유의 PromiseRejectionTracker 에러를 차단하기 위해
+//   콜백 기반으로 실행하며 chrome.runtime.lastError를 동기적으로 즉시 소비한다.
+function sendToTab(tabId, msg) {
   if (!tabId) return;
-  try {
-    await chrome.tabs.sendMessage(tabId, msg);
-  } catch (_err) {
-    // content script 미주입 탭 -> executeScript로 즉시 주입 후 재전송
-    try {
-      await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
-      await chrome.scripting.insertCSS({ target: { tabId }, files: ["content.css"] }).catch(() => {});
-      await new Promise((r) => setTimeout(r, 250));
-      await chrome.tabs.sendMessage(tabId, msg);
-    } catch (_) {
-      // chrome:// 등 주입 불가 탭이거나 탭 종료 시 정상 무시
-    }
-  }
+  chrome.tabs.sendMessage(tabId, msg, () => {
+    if (!chrome.runtime.lastError) return; // 전송 성공
+
+    // 실패(Content Script 미주입 또는 확장 재로드로 연결 끊김)
+    // -> 전체 파일 주입 대신 경량 함수 실행(func)으로 DOM 이벤트를 발송하여 안전하게 렌더링
+    chrome.scripting.executeScript(
+      {
+        target: { tabId },
+        func: (payload) => {
+          if (typeof window.__TH_DISPATCH__ === "function") {
+            window.__TH_DISPATCH__(payload);
+          } else {
+            window.dispatchEvent(new CustomEvent("TH_MESSAGE", { detail: payload }));
+          }
+        },
+        args: [msg],
+      },
+      () => {
+        void chrome.runtime.lastError; // 실행 불가 탭(chrome:// 등) 에러 무시
+      }
+    );
+  });
 }
 
 // 이미지·영상 URL을 가져와 /api/v1/scan/media(멀티파트)로 검증한다.
