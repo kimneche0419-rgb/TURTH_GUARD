@@ -41,6 +41,19 @@ function riskColor(level) {
   return ({ LOW: "#16a34a", MEDIUM: "#d97706", HIGH: "#dc2626", CRITICAL: "#b91c1c" })[level] || "#64748b";
 }
 
+// 판정 라벨 — 점수·위험도와 연동된 3단계 (이진 is_manipulated만으론 '낮은 점수+정상' 모순 발생)
+function verdict(d) {
+  const level = d.risk_level || "LOW";
+  const score = d.credibility_score == null ? 1 : d.credibility_score;
+  if (d.is_manipulated || level === "CRITICAL" || level === "HIGH") {
+    return { text: "왜곡 의심", cls: "th-ext-bad" };
+  }
+  if (level === "MEDIUM" || score < 0.6) {
+    return { text: "판정 보류(주의)", cls: "th-ext-warn" };
+  }
+  return { text: "정상", cls: "th-ext-good" };
+}
+
 function buildBanner(report) {
   const d = (report && report.decision) || {};
   const cred = Math.round(((d.credibility_score == null ? 1 : d.credibility_score)) * 100);
@@ -56,8 +69,8 @@ function buildBanner(report) {
     `<div class="th-ext-head">
       <span class="th-ext-logo">🛡️ Truth History</span>
       <span class="th-ext-cred">신뢰도 ${cred}% · ${escapeHtml(level)}</span>
-      <span class="th-ext-tag ${d.is_manipulated ? "th-ext-bad" : "th-ext-good"}">
-        ${d.is_manipulated ? "역사 왜곡·할루시네이션 의심" : "정상"}
+      <span class="th-ext-tag ${verdict(d).cls}">
+        ${escapeHtml(verdict(d).text)}
       </span>
     </div>
     <div class="th-ext-reasons">${reasonsHtml}</div>`;
@@ -84,7 +97,7 @@ function buildDetailPanel(report) {
        <ul class="th-ext-d-list">${evidence.map((e) => `<li>${e.url ? `<a class="th-ext-d-link" href="${escapeHtml(e.url)}" target="_blank" rel="noopener">${escapeHtml(e.title || e.source)}</a>` : `<span>${escapeHtml(e.title || e.source)}</span>`} <span class="th-ext-d-src">(${escapeHtml(e.source || "")})</span></li>`).join("")}</ul>` : "";
   panel.innerHTML =
     `<div class="th-ext-d-head"><span>🛡️ Truth History 상세 리포트</span><button class="th-ext-d-x">✕</button></div>
-     <div class="th-ext-d-row"><b>신뢰도</b> ${cred}% · ${escapeHtml(d.risk_level || "LOW")} — ${d.is_manipulated ? "역사 왜곡·할루시네이션 의심" : "정상"}</div>
+     <div class="th-ext-d-row"><b>신뢰도</b> ${cred}% · ${escapeHtml(d.risk_level || "LOW")} — <span class="th-ext-tag ${verdict(d).cls}">${escapeHtml(verdict(d).text)}</span></div>
      <div class="th-ext-d-row"><b>AI 생성/합성 확률</b> ${Math.round(((m.ai_generation_probability == null ? 0 : m.ai_generation_probability)) * 100)}%</div>
      <div class="th-ext-d-sec">📋 판정 근거</div>
      <ul class="th-ext-d-list">${reasons.length ? reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("") : "<li>특이 징후 없음</li>"}</ul>
@@ -99,11 +112,34 @@ function showDetail(report) {
   document.body.appendChild(buildDetailPanel(report));
 }
 
+// 어시스턴트 답변 내 이미지 자동 검증 — 각 이미지 하단에 점수+근거 배지 삽입
+function scanMediaInNode(node) {
+  if (!node || !node.querySelectorAll) return;
+  const imgs = Array.from(node.querySelectorAll("img")).filter(
+    (img) => img.src && !img.dataset.thMediaScanned && (img.naturalWidth || img.width || 999) >= 64
+  );
+  for (const img of imgs.slice(0, 3)) {
+    img.dataset.thMediaScanned = "1";
+    chrome.runtime.sendMessage({ type: "TH_SCAN_MEDIA", url: img.src, kind: "image" }, (resp) => {
+      if (chrome.runtime.lastError) return;
+      if (resp && resp.ok && resp.report) {
+        try {
+          const b = buildBanner(resp.report);
+          b.classList.add("th-ext-media");
+          b.insertAdjacentHTML("afterbegin", '<span class="th-ext-logo">🖼️ 이미지 검증</span>');
+          img.insertAdjacentElement("afterend", b);
+        } catch (_) { /* 삽입 불가 시 무시 */ }
+      }
+    });
+  }
+}
+
 async function scanNode(node) {
   if (!node || node.dataset.thScanned) return;
   const text = getText(node);
-  if (text.length < 15) return;
+  if (text.length < 15) { scanMediaInNode(node); return; }
   node.dataset.thScanned = "1";
+  scanMediaInNode(node);
   const resp = await scanText(text);
   if (resp && resp.ok && resp.report) {
     try {
