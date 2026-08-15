@@ -23,10 +23,12 @@
   font-size: 11px; font-weight: 700; color: #fff;
 }
 .th-ext-tag.th-ext-bad { background: #dc2626; }
-.th-ext-tag.th-ext-good { background: #16a34a; }
+.th-ext-tag.th-ext-warn { background: #d97706; }
+.th-ext-media { font-size: 12px; }
 .th-ext-reasons ul { margin: 4px 0 0 0; padding-left: 18px; }
 .th-ext-reasons li { margin: 2px 0; color: inherit; }
 .th-ext-none { margin: 4px 0 0 0; color: inherit; }
+.th-ext-media .th-ext-head { gap: 8px; }
 
 /* 우클릭 선택 검사 플로팅 패널 (자체 카드) */
 #th-ext-panel {
