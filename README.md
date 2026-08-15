@@ -117,11 +117,191 @@ npm install
 
 ---
 
-## 5. Vercel 배포 가이드 (프로덕션 배포)
+## 5. 전체 기능 사용 가이드 (Usage Guide)
+
+모든 기능의 구체적인 사용 방법을 코드 블록과 함께 정리했습니다. CMD는 `th`, PowerShell은 `.\th`로 치환하여 사용하세요.
+
+### 5.0 ⚡ 30초 빠른 사용 (Cheat Sheet)
+
+```bash
+th init                                        # 1회: 환경 초기화 (설정/업로드 폴더/.env 생성)
+th scan "임진왜란은 1592년에 발발했다"             # 텍스트 즉시 고증 검증 (LLM 답변 붙여넣기)
+th scan news.txt                               # 텍스트 파일 검증
+th scan photo.jpg                              # 이미지 ELA 합성 검증
+th scan video.mp4                              # 영상 딥페이크 검증
+th scan voice.wav                              # AI 복제 음성 검증
+th scan "https://example.com/article"           # 웹페이지 본문 검증 (한글 URL 지원)
+th stream video.mp4                            # 영상 실시간 청크 분석
+th dev                                         # API 서버 + 대시보드 동시 기동
+```
+
+> **종료 코드**: `0`=정상 콘텐츠, `1`=변조·허위 의심, `2`=입력/런타임 오류 — CI/CD 자동화 연동 가능.
+
+### 5.1 📝 텍스트 고증 검증 (`th scan`)
+
+LLM 답변·기사·교육 자료의 한국사 텍스트를 검증합니다. 내장 한국사 사료 KB(연표 교차 검증) + 외부 검색 증거(위키백과·DuckDuckGo 등) 병렬 교차 검증 + 시대착오 탐지가 함께 동작합니다.
+
+```bash
+# 텍스트 직접 입력 (크롬 확장과 동일한 실시간 고증 검증)
+th scan "세종대왕은 1592년에 임진왜란을 지휘했다"
+# → 한국사 연표 KB 검증 상충 — 세종 활동기(1397년~1450년)에 1592년이 포함되지 않음
+
+# 파일 / URL 분석 + JSON 리포트(XAI 판정 근거 포함)
+th scan news.txt -f json
+th scan "https://ko.wikipedia.org/wiki/임진왜란" -f table
+
+# 옵션: -f text|json|table 출력 형식, -c 설정JSON, --threshold 판정 임계점
+```
+
+### 5.2 📜 한국사 사료 지식베이스 (Python SDK)
+
+네트워크·API 키 없이 즉시 동작하는 오프라인 고증 계층(국사편찬위원회 「한국사연표」 기반).
+
+```python
+from truthhistory.text.knowledge import verify_chronology, search_knowledge_base
+
+# '사건/인물 × 연도(세기)' 주장 교차 검증
+verify_chronology("임진왜란은 1920년에 일어났다")
+# {'verified_count': 0, 'contradiction_count': 1,
+#  'contradictions': [{'subject': '임진왜란', 'claim_year': 1920, 'expected': [1592, 1598],
+#                      'detail': '『임진왜란』 1592년~1598년 사이 — 1920년 주장은 시대와 상충'}]}
+
+# KB 검색 → 오프라인 증거(evidence) 생성
+search_knowledge_base("이순신 임진왜란 거북선")
+```
+
+### 5.3 🤖 OpenRouter 무료 LLM 고증 심사 (선택)
+
+`.env`에 [OpenRouter](https://openrouter.ai/keys) 무료 키를 넣으면 `:free` 모델이 텍스트를 추가 심사해 판정 근거에 반영합니다(할루시네이션 판정 시 신뢰도 상한). 키가 없으면 자동으로 비활성되며 기존 분석은 그대로 동작합니다.
+
+```bash
+# .env
+OPENROUTER_API_KEY=sk-or-v1-...           # 필수 (https://openrouter.ai/keys)
+OPENROUTER_MODEL=                          # 선택 (기본: meta-llama/llama-3.3-70b-instruct:free)
+```
+
+설정 후에는 별도 명령 없이 `th scan`·`POST /api/v1/scan/text` 등 모든 텍스트 경로에 자동 적용됩니다.
+
+### 5.4 🖼️🎥🎙️ 이미지·영상·오디오 분석 (`th scan`)
+
+확장자로 자동 분기됩니다. 멀티미디어 의존성 필요: `pip install -e .[image]` / `.[video]` / `.[audio]` (또는 `.[all]`).
+
+```bash
+th scan historical_photo.jpg      # ELA 압축 왜곡 + FFT 주파수 노이즈 → 합성 이미지 탐지
+th scan speech.mp4                # 프레임 temporal jitter + 안면 비대칭 → 페이스 스왑 탐지
+th scan cloned_voice.wav          # MFCC/HNR 주파수 분석 → AI 복제 음성·보이스피싱 탐지
+```
+
+### 5.5 📡 스트리밍 실시간 청크 분석 (`th stream`)
+
+라이브 RTSP/HTTP 스트림·장문 영상·웹캠을 시간 청크(기본 2초) 단위로 즉시 분석합니다. 청크가 완성될 때마다 실시간 출력되고, CRITICAL 청크 발견 시 조기 종료합니다.
+
+```bash
+th stream lecture.mp4                          # 장문 영상 파일
+th stream rtsp://192.168.0.5/live.sdp          # 라이브 RTSP 스트림
+th stream 0                                    # 웹캠 0번 (정수 인덱스)
+th stream live.mp4 --chunk-seconds 5           # 청크 길이 5초
+th stream live.mp4 --max-chunks 10 -f json     # 청크 수 제한 + JSON 타임라인 리포트
+th stream live.mp4 --no-early-stop             # CRITICAL 발견 시에도 끝까지 분석
+```
+
+출력 예:
+```
+ [#1] 0.0s ~ 1.5s (4 frames) → 신뢰도 0.92 LOW
+ [#2] 2.0s ~ 3.5s (4 frames) → 신뢰도 0.31 HIGH ⚠ 변조 의심
+ 종합 신뢰도(최악 청크 기준): 0.31 (HIGH RISK)
+```
+
+### 5.6 🐍 Python SDK API
+
+```python
+import truthhistory as th
+
+th.detect_text("이순신은 1592년 한산도대첩에서 승리했다")     # 텍스트 고증
+th.detect_image("photo.jpg")                                   # ELA 이미지 합성
+th.detect_video("video.mp4")                                   # 영상 딥페이크 (전체 일괄)
+th.detect_video_stream("rtsp://cam/live.sdp", max_chunks=30)   # 스트리밍 청크 실시간
+th.detect_audio("voice.wav", transcript="의심 문장")            # AI 복제 음성
+
+# 공통 반환 규격 (AnalysisResult)
+r = th.detect_text("...")
+r.credibility_score   # 신뢰도 0.0~1.0
+r.risk_level          # LOW / MEDIUM / HIGH / CRITICAL
+r.ai_probability      # AI 생성/합성 확률
+r.reasons             # 판정 근거 목록 (XAI)
+r.analysis_details    # 모듈별 상세 지표
+```
+
+### 5.7 🌐 REST API (`th api`, 기본 http://127.0.0.1:8000)
+
+```bash
+th api --port 8000     # 서버 기동 (Vercel 라이브: https://platy-rho.vercel.app)
+```
+
+```bash
+# 텍스트 고증 검증
+curl -X POST http://127.0.0.1:8000/api/v1/scan/text \
+  -H "Content-Type: application/json" \
+  -d '{"text":"임진왜란은 1592년에 발발했다"}'
+
+# 웹페이지 URL 본문 검증
+curl -X POST http://127.0.0.1:8000/api/v1/scan/url \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://ko.wikipedia.org/wiki/이순신"}'
+
+# 미디어 파일 업로드 (txt/jpg/png/mp4/wav/mp3 …, 오디오는 transcript 선택)
+curl -X POST http://127.0.0.1:8000/api/v1/scan/media -F "file=@photo.jpg"
+curl -X POST http://127.0.0.1:8000/api/v1/scan/media -F "file=@call.wav" -F "transcript=긴급 송금"
+
+# 스트리밍 청크 분석 (청크 타임라인 + 종합 판정 XAI JSON)
+curl -X POST http://127.0.0.1:8000/api/v1/scan/stream \
+  -F "file=@video.mp4" -F "chunk_seconds=2.0" -F "max_chunks=10"
+```
+
+> 이미지·영상·오디오 분석은 로컬 서버(`th api`)에서만 지원됩니다(Vercel 서버리스 의존성 제약, §6.5).
+
+### 5.8 🔌 MCP 서버 (`th mcp`) — LLM 에이전트 연동
+
+```bash
+th mcp    # stdio JSON-RPC 서버 기동 (도구: scan_text, scan_file)
+```
+
+Claude Desktop 연동 예시(`claude_desktop_config.json`, 경로는 저장소 위치에 맞게 수정):
+```json
+{
+  "mcpServers": {
+    "truth-history": {
+      "command": "python",
+      "args": ["-m", "truthhistory.cli.main", "mcp"],
+      "env": { "PYTHONPATH": "C:/path/to/TURTH_GUARD/platy" }
+    }
+  }
+}
+```
+
+### 5.9 🧩 크롬 확장 프로그램 — LLM 답변 실시간 가드
+
+1. `chrome://extensions` → 개발자 모드 활성화 → "압축 해제된 확장 프로그램 로드" → `extension/` 폴더 선택.
+2. ChatGPT/Claude/Gemini/AI Studio에서 역사 질문 → 답변에 신뢰도 배지 자동 표시(라이트/다크 테마 자동 적응).
+3. 배지 클릭 → 상세 리포트 패널(판정 근거 + 근거 자료 웹사이트 링크 + 참고 사료).
+4. 모든 사이트에서 텍스트 드래그 → 우클릭 → "Truth History: 이 텍스트 역사 할루시네이션 검사".
+
+> 백엔드 설정 불필요 — Vercel 배포 URL을 자동 사용합니다. 상세: [extension/README.md](extension/README.md)
+
+### 5.10 📊 대시보드 (`th dev` / `th web`)
+
+```bash
+th dev    # API(8000) + React 대시보드(5173) 새 창 동시 기동 → http://localhost:5173
+th web    # 대시보드 단독 (핫 리로드, 로컬 멀티미디어 테스트용)
+```
+대시보드에서 [파일 업로드](드래그&드롭)·[웹사이트 URL 분석] 탭으로 신뢰도 게이지·경고 카드·XAI 판정 근거를 시각화합니다. 프로덕션 대시보드는 [Vercel 라이브 배포](https://platy-rho.vercel.app)를 사용하세요.
+
+---
+## 6. Vercel 배포 가이드 (프로덕션 배포)
 
 프론트엔드(React 대시보드)와 백엔드(FastAPI 서버리스 함수)를 **Vercel 단일 프로젝트 하나로 같은 도메인에 배포**하는 전체 과정입니다. 배포가 완료되면 `https://<project>.vercel.app` 형태의 URL을 받게 되며, **크롬 확장 프로그램은 이 URL을 백엔드로 자동 사용**하므로 사용자 측 설정이 전혀 필요 없습니다.
 
-### 5.1 배포 아키텍처 및 구성 파일
+### 6.1 배포 아키텍처 및 구성 파일
 
 | 파일 | 역할 |
 |:---|:---|
@@ -133,13 +313,13 @@ npm install
 
 프론트엔드는 빌드 모드에서 **상대경로(같은 출처)** 로 API를 호출하고, 개발 모드에서만 `localhost:8000`을 호출하도록 `src/App.tsx`에 자동 전환 로직이 포함되어 있어 환경변수 설정이 필요 없습니다.
 
-### 5.2 사전 준비
+### 6.2 사전 준비
 
 1. **Vercel 계정** 생성 — [https://vercel.com/signup](https://vercel.com/signup) (GitHub 계정으로 가입 권장)
 2. **Node.js 18 이상** 설치 (Vercel CLI 구동용)
 3. 저장소를 GitHub에 푸시 완료 (`git push origin main`)
 
-### 5.3 배포 단계 (Vercel CLI)
+### 6.3 배포 단계 (Vercel CLI)
 
 ```bash
 # 1. Vercel CLI 설치 및 로그인
@@ -162,7 +342,7 @@ vercel --prod --yes
 
 배포가 끝나면 터미널에 **프로덕션 URL**이 출력됩니다 (예: `https://platy-rho.vercel.app`). 이후 코드 변경 시에도 `git push` 후 `vercel --prod --yes` 한 줄로 재배포됩니다.
 
-### 5.4 배포 검증
+### 6.4 배포 검증
 
 ```bash
 # 대시보드 로딩 확인 (HTTP 200)
@@ -178,16 +358,16 @@ curl -X POST https://platy-rho.vercel.app/api/v1/scan/text \
 |:---|:---|
 | `POST /api/v1/scan/text` | ✅ 정상 (AI 생성 어휘 다양도 + 외부 검색 증거 정합성 + 시대착오 + 선동성 + 출처) |
 | `POST /api/v1/scan/url` | ✅ 정상 (웹페이지 본문 크롤링 → 고증 검증) |
-| `POST /api/v1/scan/media` | ⚠️ 중립 폴백 (이미지·영상·오디오 의존성 미포함, §5.5 참고) |
+| `POST /api/v1/scan/media` | ⚠️ 중립 폴백 (이미지·영상·오디오 의존성 미포함, §6.5 참고) |
 
-### 5.5 서버리스 제약 (중요)
+### 6.5 서버리스 제약 (중요)
 
 Vercel 서버리스 함수에는 **225MB 번들 크기 제한**이 있습니다. 그래서 `requirements.txt`에서 멀티미디어 분석용 대형 의존성(opencv-python, numpy, pillow, torch, librosa)을 제외하고 텍스트 고증 검증 중심으로 배포합니다.
 
 * 이미지(ELA)·영상(딥페이크)·오디오(AI 복제 음성) 분석이 필요한 경우 → **로컬 실행**(`th api` + 대시보드) 또는 **Render / Railway / Fly.io** 같은 컨테이너 호스트에 `requirements.txt`에 위 의존성을 추가한 뒤 `truthhistory_server:app`을 그대로 구동하면 의존성 제한 없이 전체 기능을 서비스할 수 있습니다.
 * 콜드스타트: 서버리스 특성상 유휴 상태 후 첫 요청이 수 초 지연될 수 있습니다.
 
-### 5.6 크롬 확장 프로그램 연동 (자동)
+### 6.6 크롬 확장 프로그램 연동 (자동)
 
 확장 프로그램(`extension/`)은 `background.js`의 `API_BASE` 상수가 **배포 URL을 직접 가리키도록 하드코딩**되어 있습니다. 즉:
 
@@ -197,7 +377,7 @@ Vercel 서버리스 함수에는 **225MB 번들 크기 제한**이 있습니다.
 
 > 자세한 운영/트러블슈팅 기록(의존성 크기 제한 해결 과정 등)은 [DEPLOY.md](DEPLOY.md)를 참고하세요.
 
-## 6. 상세 설계 및 구현 가이드 (Detailed Design Guides)
+## 7. 상세 설계 및 구현 가이드 (Detailed Design Guides)
 
 본 프레임워크를 직접 빌드하거나 커스터마이징하려는 개발자를 위해 모듈별 초상세 구현 가이드를 마련하였습니다.
 
@@ -216,7 +396,7 @@ Vercel 서버리스 함수에는 **225MB 번들 크기 제한**이 있습니다.
 
 ---
 
-## 7. 프로젝트 디렉토리 구조
+## 8. 프로젝트 디렉토리 구조
 ```plaintext
 TURTH_GUARD/
  ├── truthhistory/            # SDK 코어 패키지 (pip install -e .)
@@ -240,7 +420,7 @@ TURTH_GUARD/
 
 ---
 
-## 8. 예상 활용 분야
+## 9. 예상 활용 분야
 * **뉴스 플랫폼 / 언론사:** 역사 관련 제보 자료·기사의 사료 교차 검증, 합성 사진·사칭 발언 사전 차단.
 * **교육 플랫폼 / 학교 / 교과서 출판:** 교재·학습 자료·과제의 한국사 고증 오류 및 AI 생성 위변조 검증.
 * **SNS / 커뮤니티:** 역사 왜곡 콘텐츠(조작 사진·딥페이크·사칭 음성) 확산 실시간 모니터링·차단.
@@ -249,7 +429,7 @@ TURTH_GUARD/
 
 ---
 
-## 9. 오픈소스 기술적 특징
+## 10. 오픈소스 기술적 특징
 * **MIT License:** 상업·비상업 사용에 제약 없는 유연한 라이선스로 자유로운 자사 임베딩·2차 창작 허용.
 * **pip 설치 지원 (`pip install -e .[text|image|video|audio|all]`):** 저장소 클론 후 필요한 모듈의 의존성만 extras로 선택 설치하여 가벼운 도입 가능.
 * **경량 로컬 추론 + 외부 API 연동 혼합 설계:** 경량 로컬 추론으로 기본 탐지를 처리하고 무거운 검증만 외부 API로 보내, 자체 검증 레이어 구축 비용을 **80% 이상 절감**.
@@ -259,16 +439,16 @@ TURTH_GUARD/
 * **GitHub 기반 협업:** 이슈 및 PR을 통한 지속적인 생태계 고도화 및 한국사 특화 모델 업데이트.
 
 ---
-## 10. 구현 완료 통합 환경 및 향후 확장 로드맵
+## 11. 구현 완료 통합 환경 및 향후 확장 로드맵
 
-### 10.1 구현 완료
+### 11.1 구현 완료
 * **크롬 확장 프로그램 → [extension/](extension/README.md):** ChatGPT/Claude/Gemini/AI Studio 어시스턴트 답변에 **적응형 글자색 배지**(호스트 페이지 라이트/다크 자동 적응)를 삽입해 한국사 할루시네이션을 실시간 교차 검증하고, **배지 클릭 → 상세 리포트 패널**(판정 근거 + 근거 자료 웹사이트 링크 + 참고 사료)을 제공. **우클릭 컨텍스트 메뉴는 모든 사이트에서 범용 동작**하며, **Vercel 배포 백엔드를 자동 사용(설정 불필요)**, 팝업에서 자동스캔 토글과 **최근 검사 결과**를 확인.
 * **한국사 사료 지식베이스 내장 (`truthhistory/text/knowledge.py`):** 국사편찬위원회 「한국사연표」 기반 주요 사건(고조선~현대 40+건)·인물 생존/활동 연도를 SDK에 내장 — 네트워크·API 키 없이 **오프라인에서 즉시 '사건/인물 × 연도(세기)' 주장 교차 검증**. 연표 상충(예: "임진왜란은 1920년") 시 강한 할루시네이션 신호로 판정하고, `truthhistory-kb` 증거 소스로 위키백과·DuckDuckGo와 병렬 병합.
 * **스트리밍 실시간 청크 분석 (`th stream`, `POST /api/v1/scan/stream`):** 라이브 RTSP/HTTP 스트림·장문 영상·웹캠을 시간 청크(기본 2초) 단위로 증분 분석하는 `StreamingVideoAnalyzer` — 청크 완성 시마다 결과를 즉시 방출(제너레이터), CRITICAL 청크 조기 종료, 종합 판정은 최악 청크 보수 기준 + 청크 타임라인 XAI 리포트 제공.
 * **MCP 서버 (`th mcp`):** stdio 기반 JSON-RPC로 Claude 등 LLM 에이전트와 직접 통신. **대표 도구 `scan_text`는 크롬 확장 프로그램과 동일한 모티브**로 LLM 답변 텍스트의 역사 할루시네이션을 실시간 검증(AI 생성 확률·외부 검색 증거 정합성·시대착오 탐지·판정 근거/증거 출처 URL 반환)하며, `scan_file`로 멀티미디어 파일 검증 지원.
 * **Vercel 라이브 배포:** React 대시보드 + FastAPI 서버리스 백엔드를 단일 도메인([https://platy-rho.vercel.app](https://platy-rho.vercel.app))에 통합 배포 → [DEPLOY.md](DEPLOY.md).
 
-### 10.2 향후 확장 로드맵
+### 11.2 향후 확장 로드맵
 
 단계별 상세 계획(완료 기준·우선순위·리스크 대응 포함)은 **[ROADMAP.md](ROADMAP.md)** 를 참고하세요. 요약:
 
@@ -279,7 +459,7 @@ TURTH_GUARD/
 
 ---
 
-## 11. 기대 효과
+## 12. 기대 효과
 * **딥페이크 사기·역사 할루시네이션 실시간 차단 → 정보 환경 투명성 확보, 사회적 불신 최소화:** 위변조 역사 콘텐츠와 그럴듯한 거짓 역사 정보를 생성·유포 단계에서 조기 차단합니다.
 * **자체 검증 레이어 구축 비용 80% 이상 절감:** 파편화된 탐지 모듈을 단일 SDK로 규격화하고, 경량 로컬 추론 + 외부 API 연동 혼합 설계를 채택해 자체 검증 시스템 구축 비용을 대폭 낮춥니다.
 * **자사 규격 맞춤 임베딩/확장 → 뉴스·SNS·교육 시스템에 손쉬운 도입:** 지연 로딩 모듈러 구조와 MIT 라이선스 덕분에 각자의 인프라 규격에 맞춰 손쉽게 임베딩·확장할 수 있습니다.
