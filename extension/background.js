@@ -18,6 +18,19 @@ async function scanText(text) {
   return res.json();
 }
 
+// tabs.sendMessage 실패 시(content script 미주입) executeScript로 즉시 주입 후 재전송
+async function sendToTab(tabId, msg) {
+  try {
+    await chrome.tabs.sendMessage(tabId, msg);
+  } catch (_) {
+    try {
+      await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+      await chrome.scripting.insertCSS({ target: { tabId }, files: ["content.css"] });
+      setTimeout(() => chrome.tabs.sendMessage(tabId, msg).catch(() => {}), 350);
+    } catch (_e) { /* chrome:// 등 주입 불가 탭 — 무시 */ }
+  }
+}
+
 // 이미지·영상 URL을 가져와 /api/v1/scan/media(멀티파트)로 검증한다.
 async function scanMediaUrl(url, kind) {
   const res = await fetch(url);
@@ -123,13 +136,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         lastText: info.selectionText.slice(0, 240),
         lastTs: Date.now(),
       });
-      if (tab && tab.id) {
-        chrome.tabs.sendMessage(tab.id, { type: "TH_SHOW_RESULT", report });
-      }
+      if (tab && tab.id) sendToTab(tab.id, { type: "TH_SHOW_RESULT", report });
     } catch (e) {
-      if (tab && tab.id) {
-        chrome.tabs.sendMessage(tab.id, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
-      }
+      if (tab && tab.id) sendToTab(tab.id, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
     }
     return;
   }
@@ -141,13 +150,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         lastText: `이미지: ${info.srcUrl.slice(0, 200)}`,
         lastTs: Date.now(),
       });
-      if (tab && tab.id) {
-        chrome.tabs.sendMessage(tab.id, { type: "TH_SHOW_RESULT", report });
-      }
+      if (tab && tab.id) sendToTab(tab.id, { type: "TH_SHOW_RESULT", report });
     } catch (e) {
-      if (tab && tab.id) {
-        chrome.tabs.sendMessage(tab.id, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
-      }
+      if (tab && tab.id) sendToTab(tab.id, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
     }
     return;
   }
@@ -163,13 +168,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         lastText: `영상: ${String(target).slice(0, 200)}`,
         lastTs: Date.now(),
       });
-      if (tab && tab.id) {
-        chrome.tabs.sendMessage(tab.id, { type: "TH_SHOW_RESULT", report });
-      }
+      if (tab && tab.id) sendToTab(tab.id, { type: "TH_SHOW_RESULT", report });
     } catch (e) {
-      if (tab && tab.id) {
-        chrome.tabs.sendMessage(tab.id, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
-      }
+      if (tab && tab.id) sendToTab(tab.id, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
     }
   }
 });

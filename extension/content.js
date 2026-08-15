@@ -114,44 +114,55 @@ function showDetail(report) {
 
 const TH_YT_RE = /(?:youtube\.com\/(?:watch\?[^#]*v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/;
 
-// 어시스턴트 답변 내 이미지 자동 검증 — 전체 이미지 각각 하단에 점수+근거 배지 삽입
-function scanMediaInNode(node) {
-  if (!node || !node.querySelectorAll) return;
-  const imgs = Array.from(node.querySelectorAll("img")).filter(
-    (img) => img.src && !img.dataset.thMediaScanned && (img.naturalWidth || img.width || 999) >= 64
-  );
-  for (const img of imgs) { // 전체 이미지 스캔 (개수 제한 없음)
-    img.dataset.thMediaScanned = "1";
-    chrome.runtime.sendMessage({ type: "TH_SCAN_MEDIA", url: img.src, kind: "image" }, (resp) => {
-      if (chrome.runtime.lastError) return;
-      if (resp && resp.ok && resp.report) {
-        try {
-          const b = buildBanner(resp.report);
-          b.classList.add("th-ext-media");
-          b.insertAdjacentHTML("afterbegin", '<span class="th-ext-logo">🖼️ 이미지 검증</span>');
-          img.insertAdjacentElement("afterend", b);
-        } catch (_) { /* 삽입 불가 시 무시 */ }
-      }
-    });
-  }
-}
-
-// 어시스턴트 답변 내 YouTube 영상 자동 검증 — 링크(a)·임베드(iframe)를 oEmbed 기반으로 검증
-function scanYoutubeInNode(node) {
-  if (!node || !node.querySelectorAll) return;
-  const targets = new Map(); // URL → 삽입 위치 요소
-  node.querySelectorAll('a[href]').forEach((a) => {
-    const href = a.href || "";
-    if (TH_YT_RE.test(href) && !a.dataset.thYtScanned) {
-      a.dataset.thYtScanned = "1";
-      targets.set(href, a);
+// 단일 이미지 검증 및 배지 삽입
+function scanImage(img) {
+  img.dataset.thMediaScanned = "1";
+  chrome.runtime.sendMessage({ type: "TH_SCAN_MEDIA", url: img.src, kind: "image" }, (resp) => {
+    if (chrome.runtime.lastError) return;
+    if (resp && resp.ok && resp.report) {
+      try {
+        const b = buildBanner(resp.report);
+        b.classList.add("th-ext-media");
+        b.insertAdjacentHTML("afterbegin", "<span style='margin-right:6px'>🖼️ 이미지 검증</span>");
+        img.insertAdjacentElement("afterend", b);
+      } catch (_) { /* 삽입 불가 시 무시 */ }
     }
   });
-  node.querySelectorAll("iframe[src]").forEach((f) => {
-    const src = f.src || "";
-    if (TH_YT_RE.test(src) && !f.dataset.thYtScanned) {
+}
+
+// 문서 전체 이미지 스캔 — 이미 로드된 것은 즉시, 아직 로드 중이면 load 이벤트 후 재검사
+function scanImagesEverywhere() {
+  document.querySelectorAll("img").forEach((img) => {
+    if (!img.src || img.dataset.thMediaScanned) return;
+    const w = img.naturalWidth || img.width || 0;
+    if (w >= 64) {
+      scanImage(img);
+    } else if (w === 0) {
+      // 아직 로드 안 됨 — pending 표시 후 load 시 재검사
+      img.dataset.thMediaScanned = "pending";
+      img.addEventListener("load", () => {
+        if (img.dataset.thMediaScanned !== "pending") return;
+        img.dataset.thMediaScanned = "";
+        if ((img.naturalWidth || 0) >= 64) scanImage(img);
+      }, { once: true });
+    }
+    // w > 0 but < 64 → 아이콘/장식 이미지 → 스킵 (thMediaScanned 미설정, 재시도 안 함)
+  });
+}
+
+// 문서 전체 YouTube 링크·임베드 자동 검증
+function scanYoutubeEverywhere() {
+  const targets = new Map();
+  document.querySelectorAll("a[href]").forEach((a) => {
+    if (TH_YT_RE.test(a.href) && !a.dataset.thYtScanned) {
+      a.dataset.thYtScanned = "1";
+      targets.set(a.href, a);
+    }
+  });
+  document.querySelectorAll("iframe[src]").forEach((f) => {
+    if (TH_YT_RE.test(f.src) && !f.dataset.thYtScanned) {
       f.dataset.thYtScanned = "1";
-      targets.set(src, f);
+      targets.set(f.src, f);
     }
   });
   for (const [url, el] of targets) {
@@ -161,7 +172,7 @@ function scanYoutubeInNode(node) {
         try {
           const b = buildBanner(resp.report);
           b.classList.add("th-ext-media");
-          b.insertAdjacentHTML("afterbegin", '<span class="th-ext-logo">🎬 YouTube 영상 검증</span>');
+          b.insertAdjacentHTML("afterbegin", "<span style='margin-right:6px'>🎬 YouTube 검증</span>");
           el.insertAdjacentElement("afterend", b);
         } catch (_) { /* 삽입 불가 시 무시 */ }
       }
@@ -172,10 +183,8 @@ function scanYoutubeInNode(node) {
 async function scanNode(node) {
   if (!node || node.dataset.thScanned) return;
   const text = getText(node);
-  if (text.length < 15) { scanMediaInNode(node); scanYoutubeInNode(node); return; }
+  if (text.length < 15) return;
   node.dataset.thScanned = "1";
-  scanMediaInNode(node);
-  scanYoutubeInNode(node);
   const resp = await scanText(text);
   if (resp && resp.ok && resp.report) {
     try {
@@ -194,13 +203,16 @@ async function scanNode(node) {
 
 function scanUnscanned() {
   const sels = selectorsForHost();
-  if (!sels) return;
+  if (!sels) return;  // 자동 텍스트 스캔은 LLM 사이트 한정
   const seen = new Set();
   for (const sel of sels) {
     document.querySelectorAll(sel).forEach((n) => {
       if (!seen.has(n)) { seen.add(n); scanNode(n); }
     });
   }
+  // 이미지·YouTube는 LLM 사이트 한정으로 전체 문서 대상 스캔
+  scanImagesEverywhere();
+  scanYoutubeEverywhere();
 }
 
 let timer = null;
