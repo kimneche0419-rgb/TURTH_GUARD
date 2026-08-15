@@ -57,15 +57,21 @@ class ImageAnalyzer(BaseAnalyzer):
             reasons.append("안면 랜드마크 매칭 결과 대칭도 및 그림자 왜곡 감지 (딥페이크 의심)")
 
         # 피드백 보장: 의존성 부재 경고 또는 정상 판정 근거를 항상 제공
-        if not (ela_results.get("module_available", True) and fft_results.get("module_available", True)):
-            reasons.append("⚠ 이미지 정밀 분석 모듈(Pillow/OpenCV)이 설치되지 않은 환경 — 중립 결과 반환됨. "
+        modules_available = ela_results.get("module_available", True) and fft_results.get("module_available", True)
+        if not modules_available:
+            credibility_score = 0.50
+            risk_level = "MEDIUM"
+            is_manipulated = False
+            reasons.append("⚠ 이미지 정밀 분석 모듈(Pillow/OpenCV)이 설치되지 않은 환경 — 중립(50%) 결과 반환됨. "
                            "정밀 ELA/FFT 분석은 로컬 CLI(`th scan 이미지경로`) 또는 `pip install -e .[image]` 후 이용")
-        elif not reasons:
-            reasons.append(f"이상 징후 미검출 — ELA 평균 편차 {ela_results.get('mean_difference', 0.0):.2f}"
-                           f"(정상 범위) · FFT 주파수 스파이크 {fft_results.get('spike_count', 0)}개 · 안면 비대칭 정상")
+        else:
+            is_manipulated = (credibility_score < 0.6) or (ai_prob > 0.85)
+            if not reasons:
+                reasons.append(f"이상 징후 미검출 — ELA 평균 편차 {ela_results.get('mean_difference', 0.0):.2f}"
+                               f"(정상 범위) · FFT 주파수 스파이크 {fft_results.get('spike_count', 0)}개 · 안면 비대칭 정상")
 
         return AnalysisResult(
-            is_manipulated=(credibility_score < 0.6) or (ai_prob > 0.85),
+            is_manipulated=is_manipulated,
             credibility_score=round(max(credibility_score, 0.0), 4),
             risk_level=risk_level,
             ai_probability=round(ai_prob, 4),

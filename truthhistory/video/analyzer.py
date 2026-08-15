@@ -47,15 +47,21 @@ class VideoAnalyzer(BaseAnalyzer):
             reasons.append(f"비디오 내 안면 영역 합성 패턴 감지 (신뢰도: {deepfake_score * 100:.1f}%)")
 
         # 피드백 보장: 의존성 부재 경고 또는 정상 판정 근거를 항상 제공
-        if not (temporal_results.get("module_available", True) and deepfake_results.get("module_available", True)):
-            reasons.append("⚠ 비디오 정밀 분석 모듈(OpenCV)이 설치되지 않은 환경 — 중립 결과 반환됨. "
+        modules_available = temporal_results.get("module_available", True) and deepfake_results.get("module_available", True)
+        if not modules_available:
+            credibility_score = 0.50
+            risk_level = "MEDIUM"
+            is_manipulated = False
+            reasons.append("⚠ 비디오 정밀 분석 모듈(OpenCV)이 설치되지 않은 환경 — 중립(50%) 결과 반환됨. "
                            "정밀 딥페이크 분석은 로컬 CLI(`th scan 영상경로`) 또는 `pip install -e .[video]` 후 이용")
-        elif not reasons:
-            reasons.append(f"이상 징후 미검출 — 샘플 프레임 temporal jitter 지수 {jitter_score:.2f}(정상 범위) "
-                           f"· 안면 비대칭 점수 {deepfake_score:.2f} · 검출 안면 {deepfake_results.get('detected_faces_total', 0)}개")
+        else:
+            is_manipulated = (credibility_score < 0.65) or (deepfake_score > 0.8)
+            if not reasons:
+                reasons.append(f"이상 징후 미검출 — 샘플 프레임 temporal jitter 지수 {jitter_score:.2f}(정상 범위) "
+                               f"· 안면 비대칭 점수 {deepfake_score:.2f} · 검출 안면 {deepfake_results.get('detected_faces_total', 0)}개")
 
         return AnalysisResult(
-            is_manipulated=(credibility_score < 0.65) or (deepfake_score > 0.8),
+            is_manipulated=is_manipulated,
             credibility_score=round(max(credibility_score, 0.0), 4),
             risk_level=risk_level,
             ai_probability=round(deepfake_score, 4),
