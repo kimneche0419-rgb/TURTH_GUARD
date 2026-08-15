@@ -94,8 +94,14 @@ class TextAnalyzer(BaseAnalyzer):
             reasons.append(f"한국사 연표 KB 검증 일치({chrono['verified_count']}건) — 사료 정합성 확증")
         if sensation_index > 0.7:
             reasons.append(f"과장 및 선동적 감정 단어 다수 검출 (선동성 지수: {sensation_index * 100:.1f}%)")
-        if not source_results.get("has_valid_source", True):
-            reasons.append("신뢰도 높은 출처 정보(URL 링크 등) 식별 불가")
+        # 검증가능성(Verifiability) — FEVER 3분류(Supported/Refuted/NEI) 기반:
+        # '출처·증거 부재'는 부정 판정이 아니라 중립(NEI) 상태이며, 다른 검증 경로
+        # (외부 증거·KB 연표)가 이미 작동했다면 이 경고는 표시하지 않는다.
+        chrono = fact_results.get("chronology", {})
+        kb_engaged = (chrono.get("verified_count", 0) + chrono.get("contradiction_count", 0)) > 0
+        if not source_results.get("urls") and fact_results.get("evidence_count", 0) == 0 and not kb_engaged:
+            reasons.append("검증 가능한 출처·증거 미확보(NEI) — 신뢰도는 중립 처리되었으며, "
+                           "독자의 횡적 검증(SIFT: 출처 조사·타 보도 확인)을 권장")
         if llm_judge.get("available"):
             if llm_judge.get("is_hallucination"):
                 errs = "; ".join(e.get("problem", "") for e in llm_judge.get("errors", [])[:2] if e)
@@ -191,20 +197,40 @@ class TextAnalyzer(BaseAnalyzer):
 
     def verify_source_credibility(self, text: str) -> Dict[str, Any]:
         """
-        신뢰할 수 있는 도메인(뉴스, 학술 기관 등)의 URL이 들어있는지 분석합니다.
+        출처 신뢰도를 도메인 등급(tier) 기반으로 평가한다.
+
+        기준(문헌 근거):
+        - SIFT/횡적 읽기(Caulfield): '본문에 URL이 없다'는 것 자체는 비신뢰 신호가 아니다 —
+          출처 평가는 명시된 링크의 도메인 등급과 외부 검증(횡적)으로 수행한다.
+        - 자동 팩트체크(AFC) 연구: 도메인 신뢰 점수는 기관 유형(정부·교육·공공/공식 사료·
+          주요 언론 vs 미지 도메인)의 등급화로 산출한다.
+
+        산출:
+        - Tier A(0.95): 정부·교육·공공기관·공식 사료(db.history.go.kr 등)·주요 언론 패턴
+        - Tier B(0.60): 그 외 일반 URL (명시는 되었으나 평가 불가 도메인)
+        - Tier C(0.50): URL 없음 — '부재'는 부정 증거가 아니므로 중립 처리(NEI는 별도 판정)
         """
         urls = [w for w in text.split() if w.startswith("http://") or w.startswith("https://")]
         if not urls:
-            return {"has_valid_source": False, "credibility_score": 0.3, "urls": []}
-            
-        trusted_domains = [".gov", ".edu", ".or.kr", "news", "journal"]
-        score = 0.5
+            return {"source_tier": "C", "has_valid_source": False,
+                    "credibility_score": 0.5, "urls": []}
+
+        tier_a_domains = [
+            ".gov", ".go.kr", ".edu", ".ac.kr", ".or.kr",
+            "db.history.go.kr",  # 국사편찬위원회 한국사 DB(공식 사료)
+            "history.go.kr", "contents.archives.go.kr",
+            "wikipedia.org",  # 팩트체크 표준 참조 배경 출처(SIFT 'I' 단계)
+            "news", "yonhap", "chosun", "joongang", "donga", "hankyung", "kbs", "mbc", "sbs",
+            "factcheck", "snopes", "reuters",
+        ]
+        tier = "B"
         for url in urls:
-            if any(domain in url for domain in trusted_domains):
-                score = 0.9
+            if any(d in url.lower() for d in tier_a_domains):
+                tier = "A"
                 break
-                
-        return {"has_valid_source": True, "credibility_score": score, "urls": urls}
+        score = 0.95 if tier == "A" else 0.60
+        return {"source_tier": tier, "has_valid_source": True,
+                "credibility_score": score, "urls": urls}
 
     def detect_ai_generation(self, text: str) -> Dict[str, Any]:
         """

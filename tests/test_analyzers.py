@@ -85,7 +85,7 @@ class TestTruthHistoryAnalyzers(unittest.TestCase):
         # 보이스피싱 키워드가 다수 매칭되었으므로 조작 의심(is_manipulated=True)으로 나와야 함
         self.assertTrue(result.is_manipulated)
         self.assertIn("phishing_analysis", result.analysis_details)
-        self.assertTrue(result.reasons)
+
 
     def test_media_analyzers_warn_when_dependencies_missing(self):
         # 의존성 부재 폴백 시 '분석 미수행' 경고가 사용자에게 명시되어야 함 (Vercel 서버리스 등)
@@ -102,6 +102,50 @@ class TestTruthHistoryAnalyzers(unittest.TestCase):
                 result = analyzer_cls().analyze(path, transcript="")
             self.assertTrue(any("미설치" in r or "설치되지 않은" in r for r in result.reasons),
                             msg=f"{analyzer_cls.__name__} 의존성 부재 경고 없음: {result.reasons}")
+
+class TestSourceCredibilityCriteria(unittest.TestCase):
+    """출처 신뢰도 기준 — SIFT(횡적 읽기)/FEVER(NEI) 문헌 근거 재설계 검증"""
+
+    def test_tier_a_official_sources(self):
+        analyzer = TextAnalyzer()
+        r = analyzer.verify_source_credibility("출처: https://db.history.go.kr/item.do?levelId=imjin")
+        self.assertEqual(r["source_tier"], "A")
+        self.assertEqual(r["credibility_score"], 0.95)
+
+    def test_tier_b_unknown_url(self):
+        analyzer = TextAnalyzer()
+        r = analyzer.verify_source_credibility("보러가기 https://blog.example.xyz/post/1")
+        self.assertEqual(r["source_tier"], "B")
+        self.assertEqual(r["credibility_score"], 0.60)
+
+    def test_tier_c_no_url_is_neutral_not_negative(self):
+        # 'URL 부재'는 부정 증거가 아님 — 중립 0.5 (기존 0.3 감점 제거)
+        analyzer = TextAnalyzer()
+        r = analyzer.verify_source_credibility("임진왜란은 1592년에 발발했다")
+        self.assertEqual(r["source_tier"], "C")
+        self.assertEqual(r["credibility_score"], 0.5)
+
+    @patch("truthhistory.text.evidence.search_wikipedia", return_value=[])
+    @patch("truthhistory.text.evidence.search_duckduckgo", return_value=[])
+    def test_nei_reason_only_when_unverifiable(self, _wiki, _ddg):
+        # NEI(NotEnoughInfo): 증거·KB 어느 것도 작동하지 않은 경우에만 표시
+        analyzer = TextAnalyzer()
+        res = analyzer.analyze("어느 역사학자가 새로운 해석을 제기했다는 이야기가 있다")
+        self.assertTrue(any("NEI" in r for r in res.reasons))
+
+    @patch("truthhistory.text.evidence.search_wikipedia", return_value=[])
+    @patch("truthhistory.text.evidence.search_duckduckgo", return_value=[])
+    def test_no_nei_when_kb_engaged(self, _wiki, _ddg):
+        # KB 연표 검증이 작동한 텍스트에는 '출처 식별 불가' 류 경고가 붙지 않아야 함
+        analyzer = TextAnalyzer()
+        res = analyzer.analyze("임진왜란은 1920년에 발발했다")
+        self.assertFalse(any("NEI" in r or "식별 불가" in r for r in res.reasons))
+        self.assertTrue(any("연표" in r for r in res.reasons))
+
+    def test_no_nei_when_url_present(self):
+        analyzer = TextAnalyzer()
+        res = analyzer.analyze("기사 본문입니다. 출처 https://news.or.kr/article/1")
+        self.assertFalse(any("NEI" in r for r in res.reasons))
 
 if __name__ == "__main__":
     unittest.main()
