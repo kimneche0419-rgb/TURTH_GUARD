@@ -110,20 +110,23 @@ async function scanYoutube(url) {
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: "th-scan-selection",
-    title: "Truth History: 이 텍스트 역사 할루시네이션 검사",
-    contexts: ["selection"],
-  });
-  chrome.contextMenus.create({
-    id: "th-scan-image",
-    title: "Truth History: 이 이미지 위변조(합성) 검사",
-    contexts: ["image"],
-  });
-  chrome.contextMenus.create({
-    id: "th-scan-video",
-    title: "Truth History: 이 영상 딥페이크·왜곡 검사",
-    contexts: ["video", "frame", "link"],
+  // 재설치/업데이트/새로고침 시 중복 ID 에러 방지 — 기존 메뉴 전부 제거 후 재생성
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: "th-scan-selection",
+      title: "Truth History: 이 텍스트 역사 할루시네이션 검사",
+      contexts: ["selection"],
+    });
+    chrome.contextMenus.create({
+      id: "th-scan-image",
+      title: "Truth History: 이 이미지 위변조(합성) 검사",
+      contexts: ["image"],
+    });
+    chrome.contextMenus.create({
+      id: "th-scan-video",
+      title: "Truth History: 이 영상(YouTube) 딥페이크·왜곡 검사",
+      contexts: ["video", "frame"],  // "link" 제거 — 모든 링크에 노출되어 혼란
+    });
   });
 });
 
@@ -157,8 +160,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
   if (info.menuItemId === "th-scan-video") {
-    // 영상 검증은 YouTube 기반: watch·embed·shorts·youtu.be 링크/임베드/프레임을 oEmbed 메타데이터로 검증
-    const target = info.srcUrl || info.linkUrl || info.frameUrl || info.pageUrl;
+    const target = info.srcUrl || info.frameUrl || info.pageUrl;
+    if (!target) return;  // URL 없으면 무시
     try {
       const report = isYoutubeUrl(target)
         ? await scanYoutube(target)
