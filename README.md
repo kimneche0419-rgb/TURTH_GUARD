@@ -1,6 +1,6 @@
 # Truth History SDK: 생성형 AI 한국사 왜곡·멀티미디어 위변조 통합 탐지 오픈소스 프레임워크
 
-[![프로젝트 파이프라인 및 분석 보기](https://img.shields.io/badge/%F0%9F%93%8A%20%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8%20%ED%8C%8C%EC%9D%B4%ED%94%84%EB%9D%BC%EC%9D%B8%20%EB%B0%8F%20%EB%B6%84%EC%84%9D%20%EB%B3%B4%EA%B8%B0-0052FF?style=for-the-badge&logo=markdown&logoColor=white)](./PROJECT_PIPELINE.md) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](./LICENSE)
+[![프로젝트 파이프라인 및 분석 보기](https://img.shields.io/badge/%F0%9F%93%8A%20%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8%20%ED%8C%8C%EC%9D%B4%ED%94%84%EB%9D%BC%EC%9D%B8%20%EB%B0%8F%20%EB%B6%84%EC%84%9D%20%EB%B3%B4%EA%B8%B0-0052FF?style=for-the-badge&logo=markdown&logoColor=white)](./PROJECT_PIPELINE.md) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](./LICENSE) [![최종 결과보고서](https://img.shields.io/badge/%F0%9F%93%8B%20%EC%B5%9C%EC%A2%85%20%EA%B2%B0%EA%B3%BC%EB%B3%B4%EA%B3%A0%EC%84%9C-8B5CF6?style=for-the-badge&logo=googledocs&logoColor=white)](./docs/결과보고서_2026_오픈소스개발자대회.md)
 
 > **Truth History SDK**는 생성형 AI로 인해 급증하는 **한국 역사 할루시네이션(그럴듯하지만 거짓인 역사 정보 대량 생성)**과 **멀티미디어 위변조(역사 사진 합성, 딥페이크 페이스 스왑, AI 복제 음성)** 리스크에 대응하기 위해, 텍스트·시청각 교차 검증 모델을 **단일 SDK**로 통합한 오픈소스 프레임워크입니다. 누구나 자사 인프라에 역사 콘텐츠 신뢰성을 확보하고 오염된 거짓 정보의 확산을 차단할 수 있습니다. 본 문서는 시스템 아키텍처, 상세 기능 사양, 코드 레벨의 API 활용 예시를 포함한 프로젝트 명세서입니다.
 
