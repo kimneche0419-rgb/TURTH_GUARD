@@ -46,6 +46,14 @@ class VideoAnalyzer(BaseAnalyzer):
         if deepfake_score > 0.8:
             reasons.append(f"비디오 내 안면 영역 합성 패턴 감지 (신뢰도: {deepfake_score * 100:.1f}%)")
 
+        # 피드백 보장: 의존성 부재 경고 또는 정상 판정 근거를 항상 제공
+        if not (temporal_results.get("module_available", True) and deepfake_results.get("module_available", True)):
+            reasons.append("⚠ 비디오 정밀 분석 모듈(OpenCV)이 설치되지 않은 환경 — 중립 결과 반환됨. "
+                           "정밀 딥페이크 분석은 로컬 CLI(`th scan 영상경로`) 또는 `pip install -e .[video]` 후 이용")
+        elif not reasons:
+            reasons.append(f"이상 징후 미검출 — 샘플 프레임 temporal jitter 지수 {jitter_score:.2f}(정상 범위) "
+                           f"· 안면 비대칭 점수 {deepfake_score:.2f} · 검출 안면 {deepfake_results.get('detected_faces_total', 0)}개")
+
         return AnalysisResult(
             is_manipulated=(credibility_score < 0.65) or (deepfake_score > 0.8),
             credibility_score=round(max(credibility_score, 0.0), 4),
@@ -113,7 +121,7 @@ class VideoAnalyzer(BaseAnalyzer):
                 prev_hist = hist
                 
             if not diffs:
-                return {"has_temporal_jitter": False, "jitter_index": 0.0}
+                return {"has_temporal_jitter": False, "jitter_index": 0.0, "module_available": True}
                 
             mean_val = np.mean(diffs)
             std_val = np.std(diffs)
@@ -121,13 +129,15 @@ class VideoAnalyzer(BaseAnalyzer):
             
             return {
                 "has_temporal_jitter": jitter_idx > 0.35,
-                "jitter_index": round(float(jitter_idx), 4)
+                "jitter_index": round(float(jitter_idx), 4),
+                "module_available": True
             }
         except (ImportError, Exception):
-            # 폴백
+            # 폴백 — 분석 미수행을 명시해 사용자 피드백 보장
             return {
                 "has_temporal_jitter": False,
-                "jitter_index": 0.1
+                "jitter_index": 0.1,
+                "module_available": False
             }
 
     def analyze_deepfake_in_video(self, frames: List[Any]) -> Dict[str, Any]:
@@ -150,10 +160,12 @@ class VideoAnalyzer(BaseAnalyzer):
                 "manipulated_frame_ratio": round(max_score, 4),
                 "max_manipulation_probability": round(max_score, 4),
                 "detected_faces_total": detected_total,
+                "module_available": True
             }
         except (ImportError, Exception):
             return {
                 "manipulated_frame_ratio": 0.0,
                 "max_manipulation_probability": 0.0,
                 "detected_faces_total": 0,
+                "module_available": False
             }

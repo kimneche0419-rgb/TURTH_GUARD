@@ -56,6 +56,14 @@ class ImageAnalyzer(BaseAnalyzer):
         if deepfake_results.get("is_deepfake_suspect", False):
             reasons.append("안면 랜드마크 매칭 결과 대칭도 및 그림자 왜곡 감지 (딥페이크 의심)")
 
+        # 피드백 보장: 의존성 부재 경고 또는 정상 판정 근거를 항상 제공
+        if not (ela_results.get("module_available", True) and fft_results.get("module_available", True)):
+            reasons.append("⚠ 이미지 정밀 분석 모듈(Pillow/OpenCV)이 설치되지 않은 환경 — 중립 결과 반환됨. "
+                           "정밀 ELA/FFT 분석은 로컬 CLI(`th scan 이미지경로`) 또는 `pip install -e .[image]` 후 이용")
+        elif not reasons:
+            reasons.append(f"이상 징후 미검출 — ELA 평균 편차 {ela_results.get('mean_difference', 0.0):.2f}"
+                           f"(정상 범위) · FFT 주파수 스파이크 {fft_results.get('spike_count', 0)}개 · 안면 비대칭 정상")
+
         return AnalysisResult(
             is_manipulated=(credibility_score < 0.6) or (ai_prob > 0.85),
             credibility_score=round(max(credibility_score, 0.0), 4),
@@ -104,15 +112,17 @@ class ImageAnalyzer(BaseAnalyzer):
             return {
                 "has_manipulation_suspect": has_manipulation,
                 "manipulation_score": round(manip_score, 4),
-                "mean_difference": round(float(mean_difference), 2)
+                "mean_difference": round(float(mean_difference), 2),
+                "module_available": True
             }
             
         except (ImportError, Exception):
-            # 라이브러리가 없거나 연산 실패 시 더미/기본값 반환 (테스트 용도)
+            # 라이브러리가 없거나 연산 실패 시 더미/기본값 반환 — 분석 미수행을 명시해 사용자 피드백 보장
             return {
                 "has_manipulation_suspect": False,
                 "manipulation_score": 0.0,
-                "mean_difference": 0.0
+                "mean_difference": 0.0,
+                "module_available": False
             }
 
     def analyze_frequency_domain(self, image_path: str) -> Dict[str, Any]:
@@ -143,17 +153,18 @@ class ImageAnalyzer(BaseAnalyzer):
             
             return {
                 "ai_probability": round(ai_prob, 4),
-                "spike_count": len(spikes)
+                "spike_count": len(spikes),
+                "module_available": True
             }
-            
         except (ImportError, Exception):
-            # 라이브러리 부재 시 확장자 패턴 기반 간이 탐지 폴백
+            # 라이브러리 부재 시 확장자 패턴 기반 간이 탐지 폴백 — 분석 미수행 명시
             ext = image_path.split(".")[-1].lower()
             # webp의 경우 신생 이미지일 확률이 높으므로 가벼운 변조 가능성 부여
             ai_prob = 0.4 if ext == "webp" else 0.1
             return {
                 "ai_probability": ai_prob,
-                "spike_count": 0
+                "spike_count": 0,
+                "module_available": False
             }
 
     def detect_deepfake_face(self, image_path: str) -> Dict[str, Any]:
