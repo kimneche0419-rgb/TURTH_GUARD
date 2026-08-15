@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
+import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
-from typing import Optional
 
 class HTMLTextExtractor(HTMLParser):
     def __init__(self):
@@ -30,8 +30,10 @@ def fetch_url_text(url: str, timeout: int = 10) -> str:
     """
     지정된 URL의 HTML 페이지를 가져와 순수 본문 텍스트만 추출하여 반환합니다.
     """
+    # 한글 등 비ASCII IRL(IRI)을 percent-encoded URI로 정규화 (예: 위키백과 한글 문서 URL)
+    url = urllib.parse.quote(url, safe=":/?#[]@!$&'()*+,;=%")
     req = urllib.request.Request(
-        url, 
+        url,
         headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     )
     try:

@@ -106,8 +106,9 @@ npm install
 |:---|:---|
 | `FACT_CHECK_API_KEY` | Google Fact Check Search API 키 (팩트체크 증거 소스 활성화) |
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | Naver 통합 웹검색 API 자격증명 (한국어·한국사 특화 증거 수집) |
+| `OPENROUTER_API_KEY` / `OPENROUTER_MODEL` | [OpenRouter](https://openrouter.ai/keys) 무료 LLM 고증 심사(`:free` 모델). 설정 시 한국사 텍스트를 LLM 심사관이 추가 검증해 판정 근거에 반영 (기본 모델: `meta-llama/llama-3.3-70b-instruct:free`) |
 
-> 한국어 위키백과·DuckDuckGo 증거 검색은 별도 API 키 없이 동작합니다.
+> 한국어 위키백과·DuckDuckGo 증거 검색과 내장 한국사 사료 KB(연표 교차 검증)는 별도 API 키 없이 동작합니다.
 
 **`.env` 파일 지원:** CLI(`th`), REST API 서버(`th api`), MCP 서버(`th mcp`)는 기동 시 프로젝트 루트의 `.env` 파일을 자동으로 읽어 위 환경 변수를 주입합니다(`th init`으로 생성, 템플릿: [`.env.example`](./.env.example)). `.env`는 `.gitignore`에 등록되어 **Git에 커밋되지 않으므로** API 키 노출을 방지합니다. 이미 설정된 OS 환경 변수가 `.env` 값보다 우선하며, Vercel 배포 환경에서는 Vercel 대시보드의 Environment Variables를 사용합니다([DEPLOY.md](DEPLOY.md)).
 

@@ -188,7 +188,7 @@ def init(force: bool):
     console.print("\n[bold]다음 단계:[/bold]")
     console.print(" 1. `th scan <파일경로>` 명령어로 파일을 분석해보세요.")
     console.print(" 2. `th dev` 명령어로 대시보드와 서버를 한 번에 기동하세요.")
-    console.print(" 3. 필요시 `.env`에 외부 검색 증거용 API 키(FACT_CHECK_API_KEY, NAVER_CLIENT_ID/SECRET)를 입력하세요.")
+    console.print(" 3. 필요시 `.env`에 외부 검색 증거용 API 키(FACT_CHECK_API_KEY, NAVER_CLIENT_ID/SECRET)와 OpenRouter 무료 LLM 심사 키(OPENROUTER_API_KEY)를 입력하세요.")
 
 @main.command(name="dev")
 def dev():
@@ -365,6 +365,10 @@ def _create_env_file_if_absent() -> bool:
         "# Naver 통합 웹검색 API 자격증명 (선택)\n"
         "NAVER_CLIENT_ID=\n"
         "NAVER_CLIENT_SECRET=\n"
+        "\n"
+        "# OpenRouter 무료 LLM 고증 심사 (선택 — https://openrouter.ai/keys)\n"
+        "OPENROUTER_API_KEY=\n"
+        "OPENROUTER_MODEL=\n"
     )
     try:
         with open(env_path, "w", encoding="utf-8") as f:

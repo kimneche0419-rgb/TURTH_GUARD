@@ -18,7 +18,9 @@ class TextAnalyzer(BaseAnalyzer):
         self.fact_check_api_key = self.config.get("fact_check_api_key") or os.environ.get("FACT_CHECK_API_KEY")
         self.naver_client_id = self.config.get("naver_client_id") or os.environ.get("NAVER_CLIENT_ID")
         self.naver_client_secret = self.config.get("naver_client_secret") or os.environ.get("NAVER_CLIENT_SECRET")
-        
+        self.openrouter_api_key = self.config.get("openrouter_api_key") or os.environ.get("OPENROUTER_API_KEY")
+        self.openrouter_model = self.config.get("openrouter_model") or os.environ.get("OPENROUTER_MODEL")
+
         # 가중치 설정 (합 1.0)
         self.weights = self.config.get("weights", {
             "fact_weight": 0.4,
@@ -52,8 +54,19 @@ class TextAnalyzer(BaseAnalyzer):
             self.weights["sensationalism_weight"] * (1.0 - sensation_index) +
             self.weights["source_weight"] * source_score
         )
+        # OpenRouter 무료 LLM 고증 심사 (키 있을 때만, 실패·미설정 시 기존 경로 유지)
+        llm_judge = {"available": False, "error": "비활성"}
+        if self.openrouter_api_key:
+            from truthhistory.text.llm import verify_with_openrouter
+            llm_judge = verify_with_openrouter(data, self.openrouter_api_key, self.openrouter_model)
+            if llm_judge.get("available") and llm_judge.get("confidence", 0.0) >= 0.7:
+                if llm_judge.get("is_hallucination"):
+                    credibility_score = min(credibility_score, 0.35)
+                else:
+                    credibility_score = min(1.0, credibility_score + 0.05)
 
         # 위험도 산출
+
         risk_level = self._determine_risk_level(credibility_score, ai_prob)
 
         # 판단 근거 작성
@@ -83,6 +96,13 @@ class TextAnalyzer(BaseAnalyzer):
             reasons.append(f"과장 및 선동적 감정 단어 다수 검출 (선동성 지수: {sensation_index * 100:.1f}%)")
         if not source_results.get("has_valid_source", True):
             reasons.append("신뢰도 높은 출처 정보(URL 링크 등) 식별 불가")
+        if llm_judge.get("available"):
+            if llm_judge.get("is_hallucination"):
+                errs = "; ".join(e.get("problem", "") for e in llm_judge.get("errors", [])[:2] if e)
+                reasons.append(f"OpenRouter LLM 고증 심사: 할루시네이션 판정(신뢰도 {llm_judge['confidence'] * 100:.0f}%)"
+                               + (f" — {errs}" if errs else ""))
+            else:
+                reasons.append(f"OpenRouter LLM 고증 심사: 정합 판정({llm_judge.get('summary', '')})")
 
         return AnalysisResult(
             is_manipulated=(credibility_score < 0.5) or (ai_prob > 0.85),
@@ -93,7 +113,8 @@ class TextAnalyzer(BaseAnalyzer):
                 "fact_consistency": fact_results,
                 "sensationalism": sensationalism_results,
                 "source_credibility": source_results,
-                "ai_generation": ai_results
+                "ai_generation": ai_results,
+                "llm_judge": llm_judge
             },
             reasons=reasons
         )
