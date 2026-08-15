@@ -14,6 +14,8 @@
 | 🖼️ [이미지 분석 모듈 구현 상세](image_analyzer.md) | ELA 압축 왜곡 검출, FFT 주파수 노이즈 분석, GAN/Diffusion 합성 역사 이미지 탐지 |
 | 🎬 [영상 & 오디오 분석 모듈 구현 상세](video_audio_analyzer.md) | 딥페이크 페이스 스왑(랜드마크 비대칭·temporal jitter), HNR/MFCC 기반 AI 복제 음성 탐지 |
 | 💻 [CLI & Explain API 구현 상세](cli_explain.md) | Rich 기반 CLI(`th`), XAI 판정 근거(픽셀·주파수 노이즈) 반환 JSON 스키마, 종료 코드 |
+| 📜 [한국사 사료 지식베이스 구현 상세](knowledge_base.md) | 국사편찬위원회 연표 기반 오프라인 고증 계층(사건/인물 × 연도 교차 검증) |
+| 📡 [스트리밍 실시간 청크 분석 구현 상세](streaming_analyzer.md) | RTSP/HTTP 스트림·장문 영상·웹캠의 시간 청크 단위 증분 딥페이크 탐지 |
 | 🚀 [풀스택 및 MCP 확장 아키텍처 설계](fullstack_spec.md) | FastAPI 게이트웨이(pip), Vite/React 대시보드(npm), 크롬 익스텐션 및 MCP 서버 연동 규격 |
 
 ---

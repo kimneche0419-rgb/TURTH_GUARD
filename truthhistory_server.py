@@ -97,6 +97,76 @@ async def scan_media(
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
+@app.post("/api/v1/scan/stream")
+async def scan_stream(
+    file: UploadFile = File(...),
+    chunk_seconds: float = Form(2.0),
+    max_chunks: Optional[int] = Form(None),
+):
+    """
+    업로드된 스트리밍/장문 비디오를 시간 청크 단위로 실시간 분석하여
+    청크별 타임라인 + 종합 판정(XAI 규격)을 반환합니다.
+    """
+    from truthhistory.video.streaming import StreamingVideoAnalyzer
+
+    file_ext = file.filename.split(".")[-1]
+    if file_ext.lower() not in ("mp4", "avi", "mov", "mkv"):
+        raise HTTPException(status_code=400, detail="비디오 포맷만 지원됩니다 (mp4/avi/mov/mkv).")
+
+    temp_path = os.path.join(UPLOAD_DIR, file.filename)
+    with open(temp_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    try:
+        analyzer = StreamingVideoAnalyzer({"chunk_seconds": chunk_seconds})
+        raw_chunks = []
+        chunks = []
+        for chunk in analyzer.stream_analyze(temp_path, max_chunks=max_chunks):
+            raw_chunks.append(chunk)
+            r = chunk["result"]
+            chunks.append({
+                "chunk_index": chunk["chunk_index"],
+                "time_start": chunk["time_start"],
+                "time_end": chunk["time_end"],
+                "frames": chunk["frames"],
+                "credibility_score": r.credibility_score,
+                "ai_probability": r.ai_probability,
+                "risk_level": r.risk_level,
+                "is_manipulated": r.is_manipulated,
+                "reasons": r.reasons,
+            })
+        summary = analyzer.summarize(raw_chunks)
+
+        anomalies = []
+        for reason in summary.reasons:
+            anomalies.append({
+                "code": "VIDEO_STREAM_ANOMALY_DETECTED",
+                "severity": "CRITICAL" if summary.risk_level in ["HIGH", "CRITICAL"] else "WARNING",
+                "message": reason,
+                "location": "global",
+            })
+
+        explain_report = ExplainEngine.format_explanations(
+            target_file=file.filename,
+            media_type="video",
+            result=summary,
+            anomalies=anomalies,
+        )
+        explain_report["stream"] = {
+            "chunk_seconds": chunk_seconds,
+            "chunk_count": len(chunks),
+            "chunks": chunks,
+        }
+        return explain_report
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"스트리밍 분석 실패: {str(e)}")
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
 class ScanURLPayload(BaseModel):
     url: str
 

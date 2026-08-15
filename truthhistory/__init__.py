@@ -1,3 +1,5 @@
+from typing import Any, Optional
+
 from truthhistory.base import AnalysisResult
 
 __version__ = "0.1.0"
@@ -25,6 +27,15 @@ def detect_video(video_path: str, **kwargs) -> AnalysisResult:
     from truthhistory.video.analyzer import VideoAnalyzer
     analyzer = VideoAnalyzer()
     return analyzer.analyze(video_path, **kwargs)
+
+def detect_video_stream(source: Any, max_chunks: Optional[int] = None, **kwargs) -> AnalysisResult:
+    """
+    라이브 스트리밍/장문 영상을 시간 청크 단위로 실시간 분석하고 종합 결과를 반환합니다.
+    source: 비디오 파일 경로, RTSP/HTTP 스트림 URL 또는 웹캠 인덱스(int)
+    """
+    from truthhistory.video.streaming import StreamingVideoAnalyzer
+    analyzer = StreamingVideoAnalyzer()
+    return analyzer.analyze(source, max_chunks=max_chunks, **kwargs)
 
 def detect_audio(audio_path: str, **kwargs) -> AnalysisResult:
     """

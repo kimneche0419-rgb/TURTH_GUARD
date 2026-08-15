@@ -74,6 +74,11 @@ class TextAnalyzer(BaseAnalyzer):
                 reasons.append(f"시대착오 주제({terms}) 감지 — 본문이 가짜/할루시네이션으로 정정 서술함")
             else:
                 reasons.append(f"시대착오(Anachronism) 강력 의심: {terms} 등 현대 대상이 역사 시대와 동시 등장 — 할루시네이션")
+        chrono = fact_results.get("chronology", {})
+        for c in chrono.get("contradictions", [])[:2]:
+            reasons.append(f"한국사 연표 KB 검증 상충 — {c.get('detail', '사건/인물 × 연도 부정합')}")
+        if chrono.get("verified_count") and not chrono.get("contradiction_count"):
+            reasons.append(f"한국사 연표 KB 검증 일치({chrono['verified_count']}건) — 사료 정합성 확증")
         if sensation_index > 0.7:
             reasons.append(f"과장 및 선동적 감정 단어 다수 검출 (선동성 지수: {sensation_index * 100:.1f}%)")
         if not source_results.get("has_valid_source", True):
@@ -102,6 +107,7 @@ class TextAnalyzer(BaseAnalyzer):
         주장의 역사적 정합성을 평가한다. 증거 키워드 커버리지 + 상충 단서 기반 스코어링.
         """
         from truthhistory.text.evidence import build_query, gather_evidence, score_consistency, detect_anachronism, is_debunked
+        from truthhistory.text.knowledge import verify_chronology
 
         query = context or build_query(text)
         fact_check_fn = self._search_fact_check_claims if self.fact_check_api_key else None
@@ -112,6 +118,15 @@ class TextAnalyzer(BaseAnalyzer):
             fact_check_fn=fact_check_fn,
         )
         result = score_consistency(text, evidence)
+        # 한국사 사료 KB(국사편찬위원회 연표 기반) 연도·시대 교차 검증 — 오프라인 결정론 판정
+        chrono = verify_chronology(text)
+        result["chronology"] = chrono
+        if chrono["contradiction_count"]:
+            # 사건/인물 × 연도 상충 → 강한 할루시네이션 신호
+            result["consistency_score"] = min(result["consistency_score"], 0.2)
+            result["contradiction"] = True
+        elif chrono["verified_count"]:
+            result["consistency_score"] = min(1.0, result["consistency_score"] + 0.05)
         # 시대착오(Anachronism) — 현대 기기 + 역사 인물/시대 동시 등장
         ana = detect_anachronism(text)
         debunked = is_debunked(text) if ana["anachronism"] else False

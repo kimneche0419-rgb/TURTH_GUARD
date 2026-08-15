@@ -15,6 +15,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 import requests
 
+from truthhistory.text.knowledge import search_knowledge_base
+
 DDG_IA_URL = "https://api.duckduckgo.com/"
 DDG_HTML_URL = "https://html.duckduckgo.com/html/"
 NAVER_WEB_URL = "https://openapi.naver.com/v1/search/webkr.json"
@@ -200,6 +202,7 @@ def gather_evidence(
 ) -> List[Dict[str, str]]:
     """활성화된 검색 소스를 병렬로 조회해 증거를 병합(지연 최소화)."""
     tasks: List[Callable[[], List[Dict[str, str]]]] = [
+        lambda: search_knowledge_base(query),  # 오프라인 권위 KB(국사편찬위원회 연표 기반)
         lambda: search_wikipedia(query, per_call_timeout),
         lambda: search_duckduckgo(query, per_call_timeout),
     ]

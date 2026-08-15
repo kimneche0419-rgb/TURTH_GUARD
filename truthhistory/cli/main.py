@@ -258,6 +258,80 @@ def cli(ctx, target_path: str, config: str, format: str, threshold: float):
     """
     ctx.forward(scan)
 
+@main.command(name="stream")
+@click.argument("source")
+@click.option("--chunk-seconds", type=float, default=2.0, help="청크 길이(초)")
+@click.option("--max-chunks", type=int, default=None, help="최대 청크 수 (테스트/비용 제한용)")
+@click.option("--no-early-stop", is_flag=True, help="CRITICAL 청크 발견 시에도 조기 종료하지 않음")
+@click.option("-f", "--format", type=click.Choice(["text", "json"]), default="text", help="출력 형식")
+def stream(source: str, chunk_seconds: float, max_chunks, no_early_stop: bool, format: str):
+    """
+    라이브 스트리밍(RTSP/HTTP)·장문 영상 파일·웹캠을 청크 단위로 실시간 검증합니다.
+    청크가 완성될 때마다 즉시 결과를 출력하고, CRITICAL 발견 시 조기 종료합니다.
+    """
+    import sys
+    from truthhistory.video.streaming import StreamingVideoAnalyzer
+
+    analyzer = StreamingVideoAnalyzer({
+        "chunk_seconds": chunk_seconds,
+        "early_stop": not no_early_stop,
+    })
+
+    # 정수 문자열(예: "0")은 웹캠 인덱스로 해석
+    src = int(source) if source.isdigit() else source
+
+    console.print(f"[bold]========== Truth History Streaming Scan ==========[/bold]")
+    console.print(f"소스: [cyan]{source}[/cyan] | 청크 길이: {chunk_seconds}s | 조기 종료: {'off' if no_early_stop else 'on'}\n")
+
+    chunks = []
+    try:
+        for chunk in analyzer.stream_analyze(src, max_chunks=max_chunks):
+            chunks.append(chunk)
+            r = chunk["result"]
+            if format == "text":
+                color = "green" if r.risk_level == "LOW" else ("yellow" if r.risk_level == "MEDIUM" else "red")
+                console.print(
+                    f" [#{chunk['chunk_index'] + 1}] {chunk['time_start']}s ~ {chunk['time_end']}s "
+                    f"({chunk['frames']} frames) → 신뢰도 [{color}]{r.credibility_score:.2f}[/{color}] "
+                    f"{r.risk_level}" + (" [bold red]⚠ 변조 의심[/bold red]" if r.is_manipulated else "")
+                )
+    except ValueError as e:
+        console.print(f"[bold red]소스 오류:[/bold red] {str(e)}")
+        sys.exit(2)
+
+    if format == "json":
+        summary = analyzer.summarize(chunks)
+        console.print_json(data={
+            "source": source,
+            "chunk_seconds": chunk_seconds,
+            "chunk_count": len(chunks),
+            "chunks": [{
+                "chunk_index": c["chunk_index"],
+                "time_start": c["time_start"],
+                "time_end": c["time_end"],
+                "frames": c["frames"],
+                "credibility_score": c["result"].credibility_score,
+                "ai_probability": c["result"].ai_probability,
+                "risk_level": c["result"].risk_level,
+                "is_manipulated": c["result"].is_manipulated,
+            } for c in chunks],
+            "summary": {
+                "credibility_score": summary.credibility_score,
+                "risk_level": summary.risk_level,
+                "ai_probability": summary.ai_probability,
+                "is_manipulated": summary.is_manipulated,
+                "reasons": summary.reasons,
+            },
+        })
+    else:
+        summary = analyzer.summarize(chunks)
+        console.print(f"\n종합 신뢰도(최악 청크 기준): [magenta]{summary.credibility_score:.2f}[/magenta] ({summary.risk_level} RISK)")
+        for reason in summary.reasons:
+            console.print(f" - [yellow]{reason}[/yellow]")
+        console.print(f"스캔 결과: " + ("[bold red]변조 및 허위 정보 의심[/bold red]" if summary.is_manipulated else "[bold green]정상 콘텐츠[/bold green]"))
+
+    sys.exit(1 if summary.is_manipulated else 0)
+
 @main.command(name="mcp")
 def mcp():
     """
