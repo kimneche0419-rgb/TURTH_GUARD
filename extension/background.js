@@ -17,13 +17,62 @@ self.addEventListener("unhandledrejection", (ev) => {
 
 // Truth History SDK - background service worker
 // LLM 역사 할루시네이션 검증 요청을 Truth History REST API로 중계한다.
+// 기본 클라우드 백엔드 (Vercel) 및 로컬 백엔드 (localhost:8000)
+const CLOUD_API_BASE = "https://platy-rho.vercel.app";
+const LOCAL_API_BASE = "http://localhost:8000";
 
-// 배포된 Truth History 백엔드(Vercel) — 확장 프로그램은 별도 백엔드/API 주소 설정 없이 즉시 동작.
-// 로컬 백엔드로 개발하려면 이 상수를 http://localhost:8000 로 변경.
-const API_BASE = "https://platy-rho.vercel.app";
+let cachedApiBase = null;
+let lastCheckTime = 0;
+
+async function checkServerHealth(url, timeoutMs = 800) {
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+    const res = await fetch(`${url}/api/v1/health`, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data && data.status === "ok" ? data : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function getApiBase() {
+  const store = await chrome.storage.local.get({
+    backendMode: "auto", // "auto" | "local" | "cloud" | "custom"
+    customApiBase: "http://localhost:8000",
+  });
+
+  if (store.backendMode === "local") return LOCAL_API_BASE;
+  if (store.backendMode === "cloud") return CLOUD_API_BASE;
+  if (store.backendMode === "custom" && store.customApiBase) {
+    return store.customApiBase.replace(/\/+$/, "");
+  }
+
+  // "auto": 5초 캐시 유지 후 로컬 서버(localhost:8000) 우선 체크
+  const now = Date.now();
+  if (cachedApiBase && (now - lastCheckTime < 5000)) {
+    return cachedApiBase;
+  }
+
+  // 1. 로컬 백엔드(localhost:8000) 헬스체크 (정밀 Pillow/OpenCV/librosa 분석 가능)
+  const localHealth = await checkServerHealth(LOCAL_API_BASE);
+  if (localHealth) {
+    cachedApiBase = LOCAL_API_BASE;
+    lastCheckTime = now;
+    return LOCAL_API_BASE;
+  }
+
+  // 2. 미기동 시 Vercel 클라우드로 자동 폴백 (텍스트 고증 지원)
+  cachedApiBase = CLOUD_API_BASE;
+  lastCheckTime = now;
+  return CLOUD_API_BASE;
+}
 
 async function scanText(text) {
-  const res = await fetch(`${API_BASE}/api/v1/scan/text`, {
+  const apiBase = await getApiBase();
+  const res = await fetch(`${apiBase}/api/v1/scan/text`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text }),
@@ -79,7 +128,8 @@ async function scanMediaUrl(url, kind) {
   const file = new File([blob], filename, { type: blob.type || "application/octet-stream" });
   const fd = new FormData();
   fd.append("file", file);
-  const api = await fetch(`${API_BASE}/api/v1/scan/media`, { method: "POST", body: fd });
+  const apiBase = await getApiBase();
+  const api = await fetch(`${apiBase}/api/v1/scan/media`, { method: "POST", body: fd });
   if (!api.ok) {
     const detail = await api.text().catch(() => "");
     throw new Error(`API 오류 ${api.status}: ${detail.slice(0, 160)}`);
@@ -245,6 +295,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch((e) => {
         try { sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }); } catch (_) {}
       });
+    return true;
+  }
+  if (msg.type === "TH_GET_BACKEND_STATUS") {
+    (async () => {
+      const currentApi = await getApiBase();
+      const localHealth = await checkServerHealth(LOCAL_API_BASE);
+      const isLocalActive = !!localHealth;
+      sendResponse({
+        ok: true,
+        currentApi,
+        isLocalActive,
+        localHealth,
+        cloudApi: CLOUD_API_BASE,
+        localApi: LOCAL_API_BASE,
+      });
+    })();
     return true;
   }
   return false;

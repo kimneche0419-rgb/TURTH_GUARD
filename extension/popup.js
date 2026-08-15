@@ -22,6 +22,31 @@ function renderStatus(report) {
     ? `<ul class="reasons">${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>`
     : '<p class="muted" style="margin:6px 0 0 0;">특이 역사 왜곡 징후 없음</p>';
   el.innerHTML =
+function toggleCustomUrl(visible) { $("customApiWrap").style.display = visible ? "block" : "none"; }
+$("backendSelect").addEventListener("change", ({ target }) => {
+  const custom = target.value === "custom";
+  toggleCustomUrl(custom);
+});
+
+$("checkBackend").addEventListener("click", () => {
+  chrome.runtime.sendMessage({ type: "TH_GET_BACKEND_STATUS" }, (status) => {
+    const currentHtml = `현재 백엔드: ${escapeHtml(status.currentApi)}`;
+    const localHtml = status.isLocalActive ?
+      `로컬 활성화 <span class="ok">${escapeHtml(status.localApi)}</span>` :
+      `로컬 사용불가 <span class="bad">${escapeHtml(status.localApi)}</span>`;
+    
+    const globalStatus = `${currentHtml}<br>${localHtml}`;
+    $("status").innerHTML = globalStatus;
+  });
+});
+
+chrome.storage.local.get({ backendMode: "auto", customApiBase: "http://localhost:8000" }, (s) => {
+  const select = $("backendSelect");
+  const input = $("customApiInput");
+  select.value = s.backendMode || "auto";
+  input.value = s.customApiBase || "http://localhost:8000";
+  toggleCustomUrl(select.value === "custom");
+});
     `<div class="cred ${riskClass(d.risk_level)}">신뢰도 ${cred}% · ${escapeHtml(d.risk_level || "LOW")}</div>` +
     `<div class="muted" style="margin-top:2px;">${d.is_manipulated ? "역사 왜곡·할루시네이션 의심" : "정상"}</div>` +
     reasonsHtml;
