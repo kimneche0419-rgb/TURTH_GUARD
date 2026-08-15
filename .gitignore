@@ -31,3 +31,7 @@ truthhistory.json
 .env
 
 .vercel
+
+# 결과보고서 제출본(접수번호 포함)은 로컬에만 보관 — 공개 저장소 업로드 금지
+docs/*.docx
+docs/*.pdf
