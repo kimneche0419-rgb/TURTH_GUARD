@@ -110,6 +110,14 @@ class TextAnalyzer(BaseAnalyzer):
             else:
                 reasons.append(f"OpenRouter LLM 고증 심사: 정합 판정({llm_judge.get('summary', '')})")
 
+        # 피드백 보장 — 어떤 신호도 발화하지 않은 경우 중립 상태를 명시(FEVER NEI와 동일 맥락)
+        if not reasons:
+            n_evidence = fact_results.get("evidence_count", 0)
+            if n_evidence:
+                reasons.append(f"이상 징후 미검출 — 외부 증거 {n_evidence}건 수집되었으나 주장과의 커버리지가 낮아 "
+                               "단정적 판정은 보류(중립 처리)")
+            else:
+                reasons.append("이상 징후 미검출 — 명확한 검증 신호 없음(중립 처리), 독자의 횡적 검증 권장")
         return AnalysisResult(
             is_manipulated=(credibility_score < 0.5) or (ai_prob > 0.85),
             credibility_score=round(credibility_score, 4),
