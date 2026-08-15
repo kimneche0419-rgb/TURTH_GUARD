@@ -40,7 +40,7 @@ graph TD
     Client --> API_GW(게이트웨이 및 라우터)
     
     %% 3. 멀티모달 분석 계층 (Multimodal Analyzer)
-    subgraph 3. Multimodal Analyzer [멀티모달 교차 검증 계층]
+    subgraph SG3["멀티모달 교차 검증 계층"]
         API_GW --> Text_Mod[텍스트 고증 검증\n- AI 생성 탐지 / 시대착오 Anachronism 탐지]
         API_GW --> Img_Mod[ELA/주파수 노이즈\n- 합성 역사 이미지 탐지]
         API_GW --> Vid_Mod[페이스 스왑/AI 복제 음성\n- temporal jitter/MFCC·HNR]
@@ -49,11 +49,11 @@ graph TD
     %% 4. 외부/내부 모델 플러그인 계층
     Evidence[외부 검색 증거 소스\n한국어 위키백과 / DuckDuckGo\nNaver Search / Google Fact Check]
     Text_Mod -.-> Evidence
-    Img_Mod -.-> Model_Pool[(모델 풀: 경량 로컬 추론 & 외부 API 연동)]
+    Img_Mod -.-> Model_Pool[("모델 풀: 경량 로컬 추론 & 외부 API 연동")]
     Vid_Mod -.-> Model_Pool
     
     %% 5. XAI 및 신뢰도 점수 산출 계층
-    subgraph 5. XAI & Scoring Engine [설명 가능성 및 스코어링 엔진]
+    subgraph SG5["설명 가능성 및 스코어링 엔진"]
         Text_Mod --> XAI_Engine{판단 근거 통합}
         Img_Mod --> XAI_Engine
         Vid_Mod --> XAI_Engine
@@ -62,7 +62,7 @@ graph TD
     end
     
     %% 6. 결과 출력
-    Score_Calc --> Output_JSON[표준화된 구조적 응답\nJSON 형식 (판정 근거 포함)]
+    Score_Calc --> Output_JSON["표준화된 구조적 응답<br/>JSON 형식 (판정 근거 포함)"]
     Evidence_Ext --> Output_JSON
     
     Output_JSON --> Dashboard((프론트엔드 대시보드\n시각화 및 보고서\nVercel 라이브 배포))
