@@ -42,6 +42,15 @@ class AudioAnalyzer(BaseAnalyzer):
         if phishing_prob > 0.7:
             reasons.append("AI 복제 음성 기반 인물 사칭 및 금전·허위정보 유도 위험 어휘 패턴 검출")
 
+        # 피드백 보장: 의존성 부재 경고 또는 정상 판정 근거를 항상 제공
+        if not spectral_results.get("module_available", True):
+            reasons.append("⚠ 오디오 정밀 분석 모듈(librosa)이 설치되지 않은 환경 — 중립 결과 반환됨. "
+                           "정밀 MFCC/HNR 분석은 로컬 CLI(`th scan 음성경로`) 또는 `pip install -e .[audio]` 후 이용")
+        elif not reasons:
+            reasons.append(f"이상 징후 미검출 — HNR {spectral_results.get('hnr_decibels', 0.0):.1f}dB"
+                           "(자연 음성 범위) · 사칭·유도 어휘 패턴 미검출"
+                           + ("" if transcript else " (STT 전사 텍스트 미제공 — 어휘 문맥 분석 생략)"))
+
         return AnalysisResult(
             is_manipulated=(credibility_score < 0.6) or (ai_prob > 0.8),
             credibility_score=round(max(credibility_score, 0.0), 4),
@@ -85,14 +94,16 @@ class AudioAnalyzer(BaseAnalyzer):
             return {
                 "synthetic_voice_probability": ai_prob,
                 "hnr_decibels": round(float(hnr), 2),
-                "mfcc_vectors": mfcc_mean.tolist()[:5]
+                "mfcc_vectors": mfcc_mean.tolist()[:5],
+                "module_available": True
             }
         except (ImportError, Exception):
-            # 라이브러리 부재 시 폴백 기본값 반환
+            # 라이브러리 부재 시 폴백 기본값 반환 — 분석 미수행을 명시해 사용자 피드백 보장
             return {
                 "synthetic_voice_probability": 0.2,
                 "hnr_decibels": 15.0,
-                "mfcc_vectors": [0.0, 0.0, 0.0, 0.0, 0.0]
+                "mfcc_vectors": [0.0, 0.0, 0.0, 0.0, 0.0],
+                "module_available": False
             }
 
     def detect_voice_phishing(self, transcript: str) -> Dict[str, Any]:
