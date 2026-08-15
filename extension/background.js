@@ -2,11 +2,14 @@
 // Promise를 생성해 reject 시 "Uncaught (in promise)" 로 보고하는 Chrome 런타임 특성 대응.
 // 커넥션 실패 에러는 정상 동작(content script 미주입 탭)이므로 전역에서 억제한다.
 self.addEventListener("unhandledrejection", (ev) => {
-  const msg = ev.reason && (ev.reason.message || String(ev.reason));
+  const reason = ev && ev.reason;
+  const msg = String((reason && (reason.message || reason)) || "");
   if (
     msg.includes("Could not establish connection") ||
     msg.includes("Receiving end does not exist") ||
-    msg.includes("message channel closed")
+    msg.includes("message channel closed") ||
+    msg.includes("message port closed") ||
+    msg.includes("The message port closed before a response was received")
   ) {
     ev.preventDefault();  // DevTools 에러 패널에서 제거
   }
@@ -33,25 +36,22 @@ async function scanText(text) {
 }
 
 // content script가 없는 탭에서도 메시지를 전달.
-// ★ async/await 대신 콜백 전용 API 사용 — Promise를 반환하지 않아
-//   "Uncaught (in promise)" 에러가 원천 발생하지 않음.
-function sendToTab(tabId, msg) {
-  chrome.tabs.sendMessage(tabId, msg, () => {
-    if (!chrome.runtime.lastError) return;  // 성공
-    // 실패(content script 없음) → executeScript로 즉시 주입 후 재전송
-    chrome.scripting.executeScript(
-      { target: { tabId }, files: ["content.js"] },
-      () => {
-        if (chrome.runtime.lastError) return;  // chrome:// 등 주입 불가 — 조용히 무시
-        chrome.scripting.insertCSS({ target: { tabId }, files: ["content.css"] }, () => {});
-        setTimeout(() => {
-          chrome.tabs.sendMessage(tabId, msg, () => {
-            void chrome.runtime.lastError;  // 재시도 실패도 무시
-          });
-        }, 350);
-      }
-    );
-  });
+// ★ async/await + try/catch로 감싸 Promise rejection이 DevTools로 누출되지 않도록 처리.
+async function sendToTab(tabId, msg) {
+  if (!tabId) return;
+  try {
+    await chrome.tabs.sendMessage(tabId, msg);
+  } catch (_err) {
+    // content script 미주입 탭 -> executeScript로 즉시 주입 후 재전송
+    try {
+      await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+      await chrome.scripting.insertCSS({ target: { tabId }, files: ["content.css"] }).catch(() => {});
+      await new Promise((r) => setTimeout(r, 250));
+      await chrome.tabs.sendMessage(tabId, msg);
+    } catch (_) {
+      // chrome:// 등 주입 불가 탭이거나 탭 종료 시 정상 무시
+    }
+  }
 }
 
 // 이미지·영상 URL을 가져와 /api/v1/scan/media(멀티파트)로 검증한다.
@@ -154,6 +154,9 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  const tabId = tab && tab.id;
+  if (!tabId) return;
+
   if (info.menuItemId === "th-scan-selection" && info.selectionText) {
     try {
       const report = await scanText(info.selectionText);
@@ -161,10 +164,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         lastReport: report,
         lastText: info.selectionText.slice(0, 240),
         lastTs: Date.now(),
-      });
-      if (tab && tab.id) sendToTab(tab.id, { type: "TH_SHOW_RESULT", report });
+      }).catch(() => {});
+      await sendToTab(tabId, { type: "TH_SHOW_RESULT", report });
     } catch (e) {
-      if (tab && tab.id) sendToTab(tab.id, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
+      await sendToTab(tabId, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
     }
     return;
   }
@@ -175,10 +178,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         lastReport: report,
         lastText: `이미지: ${info.srcUrl.slice(0, 200)}`,
         lastTs: Date.now(),
-      });
-      if (tab && tab.id) sendToTab(tab.id, { type: "TH_SHOW_RESULT", report });
+      }).catch(() => {});
+      await sendToTab(tabId, { type: "TH_SHOW_RESULT", report });
     } catch (e) {
-      if (tab && tab.id) sendToTab(tab.id, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
+      await sendToTab(tabId, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
     }
     return;
   }
@@ -193,31 +196,46 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         lastReport: report,
         lastText: `영상: ${String(target).slice(0, 200)}`,
         lastTs: Date.now(),
-      });
-      if (tab && tab.id) sendToTab(tab.id, { type: "TH_SHOW_RESULT", report });
+      }).catch(() => {});
+      await sendToTab(tabId, { type: "TH_SHOW_RESULT", report });
     } catch (e) {
-      if (tab && tab.id) sendToTab(tab.id, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
+      await sendToTab(tabId, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
     }
   }
 });
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg && msg.type === "TH_SCAN") {
+  if (!msg) return false;
+
+  if (msg.type === "TH_SCAN") {
     scanText(msg.text)
-      .then((report) => sendResponse({ ok: true, report }))
-      .catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }));
+      .then((report) => {
+        try { sendResponse({ ok: true, report }); } catch (_) {}
+      })
+      .catch((e) => {
+        try { sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }); } catch (_) {}
+      });
     return true; // keep channel open for async response
   }
-  if (msg && msg.type === "TH_SCAN_MEDIA") {
+  if (msg.type === "TH_SCAN_MEDIA") {
     scanMediaUrl(msg.url, msg.kind)
-      .then((report) => sendResponse({ ok: true, report }))
-      .catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }));
+      .then((report) => {
+        try { sendResponse({ ok: true, report }); } catch (_) {}
+      })
+      .catch((e) => {
+        try { sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }); } catch (_) {}
+      });
     return true;
   }
-  if (msg && msg.type === "TH_SCAN_YOUTUBE") {
+  if (msg.type === "TH_SCAN_YOUTUBE") {
     scanYoutube(msg.url)
-      .then((report) => sendResponse({ ok: true, report }))
-      .catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }));
+      .then((report) => {
+        try { sendResponse({ ok: true, report }); } catch (_) {}
+      })
+      .catch((e) => {
+        try { sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }); } catch (_) {}
+      });
     return true;
   }
+  return false;
 });
