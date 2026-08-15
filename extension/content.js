@@ -1,10 +1,10 @@
 // Truth History SDK - content script
 // 지원 LLM 사이트의 어시스턴트 메시지를 관찰하여 한국사 고증 검증 배지를 삽입한다.
 (() => {
-  if (window.__TRUTH_HISTORY_INJECTED__) return;
-  window.__TRUTH_HISTORY_INJECTED__ = true;
+  if (window.__TH_GUARD_V2__) return;
+  window.__TH_GUARD_V2__ = true;
 
-  const SITE_SELECTORS = {
+  var TH_SELECTORS = {
     "chatgpt.com": ['[data-message-author-role="assistant"]', 'article[data-testid^="conversation-turn"] .markdown:last-child'],
     "chat.openai.com": ['[data-message-author-role="assistant"]'],
     "claude.ai": ['[data-testid="assistant-message"]', 'div.font-claude-message', 'div.prose', '[data-testid="turn"]'],
@@ -12,267 +12,281 @@
     "aistudio.google.com": ['.ms-en-GB', '.markdown', 'ms-chat-turn'],
   };
 
-function selectorsForHost() {
-  const h = location.hostname;
-  for (const key of Object.keys(SITE_SELECTORS)) {
-    if (h.includes(key)) return SITE_SELECTORS[key];
-  }
-  return null;
-}
-
-function getText(node) {
-  return (node.innerText || node.textContent || "").trim();
-}
-
-function scanText(text) {
-  return new Promise((resolve) => {
-    try {
-      chrome.runtime.sendMessage({ type: "TH_SCAN", text }, (resp) => resolve(resp));
-    } catch (e) {
-      resolve({ ok: false, error: String(e) });
+  function thSelectorsForHost() {
+    var h = location.hostname;
+    for (var key of Object.keys(TH_SELECTORS)) {
+      if (h.includes(key)) return TH_SELECTORS[key];
     }
-  });
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  })[c]);
-}
-
-function riskColor(level) {
-  return ({ LOW: "#16a34a", MEDIUM: "#d97706", HIGH: "#dc2626", CRITICAL: "#b91c1c" })[level] || "#64748b";
-}
-
-// 판정 라벨 — 점수·위험도와 연동된 3단계 (이진 is_manipulated만으론 '낮은 점수+정상' 모순 발생)
-function verdict(d) {
-  const level = d.risk_level || "LOW";
-  const score = d.credibility_score == null ? 1 : d.credibility_score;
-  if (d.is_manipulated || level === "CRITICAL" || level === "HIGH") {
-    return { text: "왜곡 의심", cls: "th-ext-bad" };
+    return null;
   }
-  if (level === "MEDIUM" || score < 0.6) {
-    return { text: "판정 보류(주의)", cls: "th-ext-warn" };
+
+  function thGetText(node) {
+    return (node.innerText || node.textContent || "").trim();
   }
-  return { text: "정상", cls: "th-ext-good" };
-}
 
-function buildBanner(report) {
-  const d = (report && report.decision) || {};
-  const cred = Math.round(((d.credibility_score == null ? 1 : d.credibility_score)) * 100);
-  const level = d.risk_level || "LOW";
-  const reasons = (report && report.explanations ? report.explanations : []).map((e) => e.message).filter(Boolean);
-  const wrap = document.createElement("div");
-  wrap.className = "th-ext-banner";
-  wrap.style.borderLeftColor = riskColor(level);
-  const reasonsHtml = reasons.length
-    ? `<ul>${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>`
-    : "<p class=\"th-ext-none\">특이 역사 왜곡 징후 없음</p>";
-  wrap.innerHTML =
-    `<div class="th-ext-head">
-      <span class="th-ext-logo">🛡️ Truth History</span>
-      <span class="th-ext-cred">신뢰도 ${cred}% · ${escapeHtml(level)}</span>
-      <span class="th-ext-tag ${verdict(d).cls}">
-        ${escapeHtml(verdict(d).text)}
-      </span>
-    </div>
-    <div class="th-ext-reasons">${reasonsHtml}</div>`;
-  wrap.style.cursor = "pointer";
-  wrap.title = "클릭 시 상세 리포트·근거 자료를 표시합니다";
-  wrap.addEventListener("click", () => showDetail(report));
-  return wrap;
-}
-function buildDetailPanel(report) {
-  const d = (report && report.decision) || {};
-  const m = (report && report.metrics) || {};
-  const cred = Math.round(((d.credibility_score == null ? 1 : d.credibility_score)) * 100);
-  const reasons = (report && report.explanations ? report.explanations : []).map((e) => e.message).filter(Boolean);
-  const evidence = (report && report.evidence) || [];
-  const ref = (report && report.reference) || {};
-  const panel = document.createElement("div");
-  panel.id = "th-ext-detail";
-  const refHtml = ref.snippet
-    ? `<div class="th-ext-d-sec">📖 참고 사료 (수정된 진실 근거)</div>
-       <div class="th-ext-d-ref"><span class="th-ext-d-src">${escapeHtml(ref.source || "")}</span> ${escapeHtml(ref.snippet)}
-       ${ref.url ? `<a class="th-ext-d-link" href="${escapeHtml(ref.url)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}</div>` : "";
-  const evHtml = evidence.length
-    ? `<div class="th-ext-d-sec">🔗 근거 자료 웹사이트</div>
-       <ul class="th-ext-d-list">${evidence.map((e) => `<li>${e.url ? `<a class="th-ext-d-link" href="${escapeHtml(e.url)}" target="_blank" rel="noopener">${escapeHtml(e.title || e.source)}</a>` : `<span>${escapeHtml(e.title || e.source)}</span>`} <span class="th-ext-d-src">(${escapeHtml(e.source || "")})</span></li>`).join("")}</ul>` : "";
-  panel.innerHTML =
-    `<div class="th-ext-d-head"><span>🛡️ Truth History 상세 리포트</span><button class="th-ext-d-x">✕</button></div>
-     <div class="th-ext-d-row"><b>신뢰도</b> ${cred}% · ${escapeHtml(d.risk_level || "LOW")} — <span class="th-ext-tag ${verdict(d).cls}">${escapeHtml(verdict(d).text)}</span></div>
-     <div class="th-ext-d-row"><b>AI 생성/합성 확률</b> ${Math.round(((m.ai_generation_probability == null ? 0 : m.ai_generation_probability)) * 100)}%</div>
-     <div class="th-ext-d-sec">📋 판정 근거</div>
-     <ul class="th-ext-d-list">${reasons.length ? reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("") : "<li>특이 징후 없음</li>"}</ul>
-     ${refHtml}${evHtml}`;
-  panel.querySelector(".th-ext-d-x").onclick = () => panel.remove();
-  return panel;
-}
-
-function showDetail(report) {
-  const old = document.getElementById("th-ext-detail");
-  if (old) old.remove();
-  document.body.appendChild(buildDetailPanel(report));
-}
-
-const TH_YT_RE = /(?:youtube\.com\/(?:watch\?[^#]*v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/;
-
-// 단일 이미지 검증 및 배지 삽입
-function scanImage(img) {
-  img.dataset.thMediaScanned = "1";
-  chrome.runtime.sendMessage({ type: "TH_SCAN_MEDIA", url: img.src, kind: "image" }, (resp) => {
-    if (chrome.runtime.lastError) return;
-    if (resp && resp.ok && resp.report) {
+  function thScanText(text) {
+    return new Promise((resolve) => {
       try {
-        const b = buildBanner(resp.report);
-        b.classList.add("th-ext-media");
-        b.insertAdjacentHTML("afterbegin", "<span style='margin-right:6px'>🖼️ 이미지 검증</span>");
-        img.insertAdjacentElement("afterend", b);
-      } catch (_) { /* 삽입 불가 시 무시 */ }
-    }
-  });
-}
-
-// 문서 전체 이미지 스캔 — 이미 로드된 것은 즉시, 아직 로드 중이면 load 이벤트 후 재검사
-function scanImagesEverywhere() {
-  document.querySelectorAll("img").forEach((img) => {
-    if (!img.src || img.dataset.thMediaScanned) return;
-    const w = img.naturalWidth || img.width || 0;
-    if (w >= 64) {
-      scanImage(img);
-    } else if (w === 0) {
-      // 아직 로드 안 됨 — pending 표시 후 load 시 재검사
-      img.dataset.thMediaScanned = "pending";
-      img.addEventListener("load", () => {
-        if (img.dataset.thMediaScanned !== "pending") return;
-        img.dataset.thMediaScanned = "";
-        if ((img.naturalWidth || 0) >= 64) scanImage(img);
-      }, { once: true });
-    }
-    // w > 0 but < 64 → 아이콘/장식 이미지 → 스킵 (thMediaScanned 미설정, 재시도 안 함)
-  });
-}
-
-// 문서 전체 YouTube 링크·임베드 자동 검증
-function scanYoutubeEverywhere() {
-  const targets = new Map();
-  document.querySelectorAll("a[href]").forEach((a) => {
-    if (TH_YT_RE.test(a.href) && !a.dataset.thYtScanned) {
-      a.dataset.thYtScanned = "1";
-      targets.set(a.href, a);
-    }
-  });
-  document.querySelectorAll("iframe[src]").forEach((f) => {
-    if (TH_YT_RE.test(f.src) && !f.dataset.thYtScanned) {
-      f.dataset.thYtScanned = "1";
-      targets.set(f.src, f);
-    }
-  });
-  for (const [url, el] of targets) {
-    chrome.runtime.sendMessage({ type: "TH_SCAN_YOUTUBE", url }, (resp) => {
-      if (chrome.runtime.lastError) return;
-      if (resp && resp.ok && resp.report) {
-        try {
-          const b = buildBanner(resp.report);
-          b.classList.add("th-ext-media");
-          b.insertAdjacentHTML("afterbegin", "<span style='margin-right:6px'>🎬 YouTube 검증</span>");
-          el.insertAdjacentElement("afterend", b);
-        } catch (_) { /* 삽입 불가 시 무시 */ }
+        chrome.runtime.sendMessage({ type: "TH_SCAN", text }, (resp) => {
+          if (chrome.runtime.lastError) {
+            resolve({ ok: false, error: chrome.runtime.lastError.message });
+            return;
+          }
+          resolve(resp || { ok: false, error: "응답 없음" });
+        });
+      } catch (e) {
+        resolve({ ok: false, error: String(e) });
       }
     });
   }
-}
 
-async function scanNode(node) {
-  if (!node || node.dataset.thScanned) return;
-  const text = getText(node);
-  if (text.length < 15) return;
-  node.dataset.thScanned = "1";
-  const resp = await scanText(text);
-  if (resp && resp.ok && resp.report) {
+  function thEscapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    })[c]);
+  }
+
+  function thRiskColor(level) {
+    return ({ LOW: "#16a34a", MEDIUM: "#d97706", HIGH: "#dc2626", CRITICAL: "#b91c1c" })[level] || "#64748b";
+  }
+
+  // 판정 라벨 — 점수·위험도와 연동된 3단계 (점수 낮으면 중립/주의 판정)
+  function thVerdict(d) {
+    var level = d.risk_level || "LOW";
+    var score = d.credibility_score == null ? 1 : d.credibility_score;
+    if (d.is_manipulated || level === "CRITICAL" || level === "HIGH") {
+      return { text: "왜곡 의심", cls: "th-ext-bad" };
+    }
+    if (level === "MEDIUM" || score < 0.6) {
+      return { text: "판정 보류(주의)", cls: "th-ext-warn" };
+    }
+    return { text: "정상", cls: "th-ext-good" };
+  }
+
+  function thBuildBanner(report) {
+    var d = (report && report.decision) || {};
+    var cred = Math.round(((d.credibility_score == null ? 1 : d.credibility_score)) * 100);
+    var level = d.risk_level || "LOW";
+    var reasons = (report && report.explanations ? report.explanations : []).map((e) => e.message).filter(Boolean);
+    var wrap = document.createElement("div");
+    wrap.className = "th-ext-banner";
+    wrap.style.borderLeftColor = thRiskColor(level);
+    var reasonsHtml = reasons.length
+      ? `<ul>${reasons.map((r) => `<li>${thEscapeHtml(r)}</li>`).join("")}</ul>`
+      : "<p class=\"th-ext-none\">특이 역사 왜곡 징후 없음</p>";
+    wrap.innerHTML =
+      `<div class="th-ext-head">
+        <span class="th-ext-logo">🛡️ Truth History</span>
+        <span class="th-ext-cred">신뢰도 ${cred}% · ${thEscapeHtml(level)}</span>
+        <span class="th-ext-tag ${thVerdict(d).cls}">
+          ${thEscapeHtml(thVerdict(d).text)}
+        </span>
+      </div>
+      <div class="th-ext-reasons">${reasonsHtml}</div>`;
+    wrap.style.cursor = "pointer";
+    wrap.title = "클릭 시 상세 리포트·근거 자료를 표시합니다";
+    wrap.addEventListener("click", () => thShowDetail(report));
+    return wrap;
+  }
+
+  function thBuildDetailPanel(report) {
+    var d = (report && report.decision) || {};
+    var m = (report && report.metrics) || {};
+    var cred = Math.round(((d.credibility_score == null ? 1 : d.credibility_score)) * 100);
+    var reasons = (report && report.explanations ? report.explanations : []).map((e) => e.message).filter(Boolean);
+    var evidence = (report && report.evidence) || [];
+    var ref = (report && report.reference) || {};
+    var panel = document.createElement("div");
+    panel.id = "th-ext-detail";
+    var refHtml = ref.snippet
+      ? `<div class="th-ext-d-sec">📖 참고 사료 (수정된 진실 근거)</div>
+         <div class="th-ext-d-ref"><span class="th-ext-d-src">${thEscapeHtml(ref.source || "")}</span> ${thEscapeHtml(ref.snippet)}
+         ${ref.url ? `<a class="th-ext-d-link" href="${thEscapeHtml(ref.url)}" target="_blank" rel="noopener">원문 보기 ↗</a>` : ""}</div>` : "";
+    var evHtml = evidence.length
+      ? `<div class="th-ext-d-sec">🔗 근거 자료 웹사이트</div>
+         <ul class="th-ext-d-list">${evidence.map((e) => `<li>${e.url ? `<a class="th-ext-d-link" href="${thEscapeHtml(e.url)}" target="_blank" rel="noopener">${thEscapeHtml(e.title || e.source)}</a>` : `<span>${thEscapeHtml(e.title || e.source)}</span>`} <span class="th-ext-d-src">(${thEscapeHtml(e.source || "")})</span></li>`).join("")}</ul>` : "";
+    panel.innerHTML =
+      `<div class="th-ext-d-head"><span>🛡️ Truth History 상세 리포트</span><button class="th-ext-d-x">✕</button></div>
+       <div class="th-ext-d-row"><b>신뢰도</b> ${cred}% · ${thEscapeHtml(d.risk_level || "LOW")} — <span class="th-ext-tag ${thVerdict(d).cls}">${thEscapeHtml(thVerdict(d).text)}</span></div>
+       <div class="th-ext-d-row"><b>AI 생성/합성 확률</b> ${Math.round(((m.ai_generation_probability == null ? 0 : m.ai_generation_probability)) * 100)}%</div>
+       <div class="th-ext-d-sec">📋 판정 근거</div>
+       <ul class="th-ext-d-list">${reasons.length ? reasons.map((r) => `<li>${thEscapeHtml(r)}</li>`).join("") : "<li>특이 징후 없음</li>"}</ul>
+       ${refHtml}${evHtml}`;
+    panel.querySelector(".th-ext-d-x").onclick = () => panel.remove();
+    return panel;
+  }
+
+  function thShowDetail(report) {
+    var old = document.getElementById("th-ext-detail");
+    if (old) old.remove();
+    document.body.appendChild(thBuildDetailPanel(report));
+  }
+
+  var TH_YT_PATTERN = /(?:youtube\.com\/(?:watch\?[^#]*v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/;
+
+  // 단일 이미지 검증 및 배지 삽입
+  function thScanImage(img) {
+    img.dataset.thMediaScanned = "1";
     try {
-      node.prepend(buildBanner(resp.report));
-    } catch (_) { /* shadow DOM 등 삽입 불가 시 무시 */ }
-    chrome.storage.local.set({
-      lastReport: resp.report,
-      lastText: text.slice(0, 240),
-      lastTs: Date.now(),
-    });
-  } else if (resp && !resp.ok) {
-    node.dataset.thScanned = ""; // 실패 시 재시도 허용
-    showError(resp.error || "검증 실패");
+      chrome.runtime.sendMessage({ type: "TH_SCAN_MEDIA", url: img.src, kind: "image" }, (resp) => {
+        if (chrome.runtime.lastError) return;
+        if (resp && resp.ok && resp.report) {
+          try {
+            var b = thBuildBanner(resp.report);
+            b.classList.add("th-ext-media");
+            b.insertAdjacentHTML("afterbegin", "<span style='margin-right:6px'>🖼️ 이미지 검증</span>");
+            img.insertAdjacentElement("afterend", b);
+          } catch (_) { /* 삽입 불가 시 무시 */ }
+        }
+      });
+    } catch (_) {}
   }
-}
 
-function scanUnscanned() {
-  const sels = selectorsForHost();
-  if (!sels) return;  // 자동 텍스트 스캔은 LLM 사이트 한정
-  const seen = new Set();
-  for (const sel of sels) {
-    document.querySelectorAll(sel).forEach((n) => {
-      if (!seen.has(n)) { seen.add(n); scanNode(n); }
+  // 문서 전체 이미지 스캔
+  function thScanImagesEverywhere() {
+    document.querySelectorAll("img").forEach((img) => {
+      if (!img.src || img.dataset.thMediaScanned) return;
+      var w = img.naturalWidth || img.width || 0;
+      if (w >= 64) {
+        thScanImage(img);
+      } else if (w === 0) {
+        img.dataset.thMediaScanned = "pending";
+        img.addEventListener("load", () => {
+          if (img.dataset.thMediaScanned !== "pending") return;
+          img.dataset.thMediaScanned = "";
+          if ((img.naturalWidth || 0) >= 64) thScanImage(img);
+        }, { once: true });
+      }
     });
   }
-  // 이미지·YouTube는 LLM 사이트 한정으로 전체 문서 대상 스캔
-  scanImagesEverywhere();
-  scanYoutubeEverywhere();
-}
 
-let timer = null;
-const observer = new MutationObserver(() => {
-  if (timer) return;
-  timer = setTimeout(() => { timer = null; scanUnscanned(); }, 1500);
-});
+  // 문서 전체 YouTube 링크·임베드 자동 검증
+  function thScanYoutubeEverywhere() {
+    var targets = new Map();
+    document.querySelectorAll("a[href]").forEach((a) => {
+      if (TH_YT_PATTERN.test(a.href) && !a.dataset.thYtScanned) {
+        a.dataset.thYtScanned = "1";
+        targets.set(a.href, a);
+      }
+    });
+    document.querySelectorAll("iframe[src]").forEach((f) => {
+      if (TH_YT_PATTERN.test(f.src) && !f.dataset.thYtScanned) {
+        f.dataset.thYtScanned = "1";
+        targets.set(f.src, f);
+      }
+    });
+    for (var [url, el] of targets) {
+      try {
+        chrome.runtime.sendMessage({ type: "TH_SCAN_YOUTUBE", url }, (resp) => {
+          if (chrome.runtime.lastError) return;
+          if (resp && resp.ok && resp.report) {
+            try {
+              var b = thBuildBanner(resp.report);
+              b.classList.add("th-ext-media");
+              b.insertAdjacentHTML("afterbegin", "<span style='margin-right:6px'>🎬 YouTube 검증</span>");
+              el.insertAdjacentElement("afterend", b);
+            } catch (_) { /* 삽입 불가 시 무시 */ }
+          }
+        });
+      } catch (_) {}
+    }
+  }
 
-function start() {
-  chrome.storage.local.get({ autoScan: true }, ({ autoScan }) => {
-    if (!autoScan) return;
-    observer.observe(document.body, { childList: true, subtree: true });
-    setTimeout(scanUnscanned, 2500);
+  async function thScanNode(node) {
+    if (!node || node.dataset.thScanned) return;
+    var text = thGetText(node);
+    if (text.length < 15) return;
+    node.dataset.thScanned = "1";
+    var resp = await thScanText(text);
+    if (resp && resp.ok && resp.report) {
+      try {
+        node.prepend(thBuildBanner(resp.report));
+      } catch (_) { /* shadow DOM 등 삽입 불가 시 무시 */ }
+      try {
+        chrome.storage.local.set({
+          lastReport: resp.report,
+          lastText: text.slice(0, 240),
+          lastTs: Date.now(),
+        });
+      } catch (_) {}
+    } else if (resp && !resp.ok) {
+      node.dataset.thScanned = ""; // 실패 시 재시도 허용
+      thShowError(resp.error || "검증 실패");
+    }
+  }
+
+  function thScanUnscanned() {
+    var sels = thSelectorsForHost();
+    if (!sels) return;  // 자동 텍스트 스캔은 LLM 사이트 한정
+    var seen = new Set();
+    for (var sel of sels) {
+      document.querySelectorAll(sel).forEach((n) => {
+        if (!seen.has(n)) { seen.add(n); thScanNode(n); }
+      });
+    }
+    thScanImagesEverywhere();
+    thScanYoutubeEverywhere();
+  }
+
+  var thTimer = null;
+  var thObserver = new MutationObserver(() => {
+    if (thTimer) return;
+    thTimer = setTimeout(() => { thTimer = null; thScanUnscanned(); }, 1500);
   });
-}
 
-// 우클릭 선택 텍스트 검사 결과 → 플로팅 패널
-function showResult(report) {
-  removePanel();
-  const panel = document.createElement("div");
-  panel.id = "th-ext-panel";
-  panel.appendChild(buildBanner(report));
-  const close = document.createElement("button");
-  close.className = "th-ext-close";
-  close.textContent = "닫기";
-  close.onclick = removePanel;
-  panel.appendChild(close);
-  document.body.appendChild(panel);
-}
+  function thStart() {
+    try {
+      chrome.storage.local.get({ autoScan: true }, ({ autoScan }) => {
+        if (!autoScan) return;
+        if (document.body) {
+          thObserver.observe(document.body, { childList: true, subtree: true });
+          setTimeout(thScanUnscanned, 2500);
+        }
+      });
+    } catch (_) {}
+  }
 
-function removePanel() {
-  const old = document.getElementById("th-ext-panel");
-  if (old) old.remove();
-}
+  // 우클릭 선택 텍스트 검사 결과 → 플로팅 패널
+  function thShowResult(report) {
+    thRemovePanel();
+    var panel = document.createElement("div");
+    panel.id = "th-ext-panel";
+    panel.appendChild(thBuildBanner(report));
+    var close = document.createElement("button");
+    close.className = "th-ext-close";
+    close.textContent = "닫기";
+    close.onclick = thRemovePanel;
+    panel.appendChild(close);
+    document.body.appendChild(panel);
+  }
 
-function showError(message) {
-  removePanel();
-  const panel = document.createElement("div");
-  panel.id = "th-ext-panel";
-  panel.className = "th-ext-err";
-  panel.innerHTML = `<div class="th-ext-head"><span class="th-ext-logo">🛡️ Truth History</span></div>
-    <p>검증 엔진 연결 실패: ${escapeHtml(String(message))}</p>
-    <p class="th-ext-hint">Truth History 검증 서버(https://platy-rho.vercel.app)와의 네트워크 연결을 확인하세요.</p>`;
-  const close = document.createElement("button");
-  close.className = "th-ext-close";
-  close.textContent = "닫기";
-  close.onclick = removePanel;
-  panel.appendChild(close);
-  document.body.appendChild(panel);
-  setTimeout(removePanel, 8000);
-}
+  function thRemovePanel() {
+    var old = document.getElementById("th-ext-panel");
+    if (old) old.remove();
+  }
 
-chrome.runtime.onMessage.addListener((msg) => {
-  if (!msg) return;
-  if (msg.type === "TH_SHOW_RESULT" && msg.report) showResult(msg.report);
-  if (msg.type === "TH_ERROR" && msg.message) showError(msg.message);
-});
+  function thShowError(message) {
+    thRemovePanel();
+    var panel = document.createElement("div");
+    panel.id = "th-ext-panel";
+    panel.className = "th-ext-err";
+    panel.innerHTML = `<div class="th-ext-head"><span class="th-ext-logo">🛡️ Truth History</span></div>
+      <p>검증 엔진 연결 실패: ${thEscapeHtml(String(message))}</p>
+      <p class="th-ext-hint">Truth History 검증 서버(https://platy-rho.vercel.app)와의 네트워크 연결을 확인하세요.</p>`;
+    var close = document.createElement("button");
+    close.className = "th-ext-close";
+    close.textContent = "닫기";
+    close.onclick = thRemovePanel;
+    panel.appendChild(close);
+    document.body.appendChild(panel);
+    setTimeout(thRemovePanel, 8000);
+  }
 
-  start();
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (!msg) return;
+    if (msg.type === "TH_SHOW_RESULT" && msg.report) thShowResult(msg.report);
+    if (msg.type === "TH_ERROR" && msg.message) thShowError(msg.message);
+  });
+
+  thStart();
 })();
