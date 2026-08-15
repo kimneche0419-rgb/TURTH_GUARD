@@ -255,7 +255,7 @@ function showError(message) {
   panel.className = "th-ext-err";
   panel.innerHTML = `<div class="th-ext-head"><span class="th-ext-logo">🛡️ Truth History</span></div>
     <p>검증 엔진 연결 실패: ${escapeHtml(String(message))}</p>
-    <p class="th-ext-hint">Truth History 백엔드(<code>th api</code>)가 실행 중인지, popup의 API 주소가 올바른지 확인하세요.</p>`;
+    <p class="th-ext-hint">Truth History 검증 서버(https://platy-rho.vercel.app)와의 네트워크 연결을 확인하세요.</p>`;
   const close = document.createElement("button");
   close.className = "th-ext-close";
   close.textContent = "닫기";
