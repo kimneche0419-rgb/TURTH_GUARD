@@ -41,6 +41,61 @@ async function scanMediaUrl(url, kind) {
   return api.json();
 }
 
+const YT_URL_RE = /(?:youtube\.com\/(?:watch\?[^#]*v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/;
+const RISK_ORDER = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
+
+function isYoutubeUrl(u) {
+  return !!(u && YT_URL_RE.test(u));
+}
+
+// YouTube 영상 검증 — oEmbed 메타데이터(제목·채널·썸네일) 기반:
+// ① 썸네일 이미지 ELA/합성 분석(/scan/media) ② 제목·채널명 텍스트 고증(/scan/text) 병합.
+async function scanYoutube(url) {
+  const m = url.match(YT_URL_RE);
+  if (!m) throw new Error("YouTube URL이 아닙니다");
+  const oe = await fetch(
+    `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
+  );
+  if (!oe.ok) throw new Error(`YouTube 정보 조회 실패 ${oe.status}`);
+  const meta = await oe.json();
+
+  const [thumbReport, titleReport] = await Promise.all([
+    meta.thumbnail_url ? scanMediaUrl(meta.thumbnail_url, "image").catch(() => null) : null,
+    scanText(`"${meta.title}" — ${meta.author_name} 채널의 YouTube 영상`).catch(() => null),
+  ]);
+
+  const exps = [
+    ...((thumbReport && thumbReport.explanations) || []),
+    ...((titleReport && titleReport.explanations) || []),
+  ];
+  const creds = [thumbReport, titleReport]
+    .filter(Boolean)
+    .map((r) => (r.decision && r.decision.credibility_score != null ? r.decision.credibility_score : 1));
+  const risks = [thumbReport, titleReport]
+    .filter(Boolean)
+    .map((r) => (r.decision && r.decision.risk_level) || "LOW");
+  const worst = risks.sort((a, b) => RISK_ORDER.indexOf(b) - RISK_ORDER.indexOf(a))[0] || "LOW";
+  const cred = creds.length ? Math.min(...creds) : 0.5;
+  const manipulated = !!(thumbReport || titleReport) &&
+    ((thumbReport && thumbReport.decision && thumbReport.decision.is_manipulated) ||
+     (titleReport && titleReport.decision && titleReport.decision.is_manipulated));
+
+  return {
+    target_file: meta.title,
+    media_type: "video(youtube)",
+    decision: { is_manipulated: manipulated, credibility_score: cred, risk_level: worst },
+    metrics: {
+      ai_generation_probability: (titleReport && titleReport.metrics && titleReport.metrics.ai_generation_probability) || 0,
+      editing_artifact_score: (thumbReport && thumbReport.metrics && thumbReport.metrics.editing_artifact_score) || 0,
+      semantic_consistency_score: (titleReport && titleReport.metrics && titleReport.metrics.semantic_consistency_score) || 0,
+    },
+    explanations: exps.length ? exps : [{ code: "YOUTUBE_SCAN", severity: "WARNING", message: "YouTube 메타데이터(썸네일·제목) 기반 검증 결과 없음 — 중립 처리", location: "global" }],
+    evidence: (titleReport && titleReport.evidence) || [],
+    reference: (titleReport && titleReport.reference) || {},
+    youtube: { url, title: meta.title, author: meta.author_name },
+  };
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: "th-scan-selection",
@@ -54,8 +109,8 @@ chrome.runtime.onInstalled.addListener(() => {
   });
   chrome.contextMenus.create({
     id: "th-scan-video",
-    title: "Truth History: 이 영상 딥페이크 검사",
-    contexts: ["video"],
+    title: "Truth History: 이 영상 딥페이크·왜곡 검사",
+    contexts: ["video", "frame", "link"],
   });
 });
 
@@ -78,13 +133,34 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     }
     return;
   }
-  if ((info.menuItemId === "th-scan-image" || info.menuItemId === "th-scan-video") && info.srcUrl) {
-    const kind = info.menuItemId === "th-scan-video" ? "video" : "image";
+  if (info.menuItemId === "th-scan-image" && info.srcUrl) {
     try {
-      const report = await scanMediaUrl(info.srcUrl, kind);
+      const report = await scanMediaUrl(info.srcUrl, "image");
       await chrome.storage.local.set({
         lastReport: report,
-        lastText: `${kind === "video" ? "영상" : "이미지"}: ${info.srcUrl.slice(0, 200)}`,
+        lastText: `이미지: ${info.srcUrl.slice(0, 200)}`,
+        lastTs: Date.now(),
+      });
+      if (tab && tab.id) {
+        chrome.tabs.sendMessage(tab.id, { type: "TH_SHOW_RESULT", report });
+      }
+    } catch (e) {
+      if (tab && tab.id) {
+        chrome.tabs.sendMessage(tab.id, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
+      }
+    }
+    return;
+  }
+  if (info.menuItemId === "th-scan-video") {
+    // 영상 검증은 YouTube 기반: watch·embed·shorts·youtu.be 링크/임베드/프레임을 oEmbed 메타데이터로 검증
+    const target = info.srcUrl || info.linkUrl || info.frameUrl || info.pageUrl;
+    try {
+      const report = isYoutubeUrl(target)
+        ? await scanYoutube(target)
+        : await scanMediaUrl(target, "video");
+      await chrome.storage.local.set({
+        lastReport: report,
+        lastText: `영상: ${String(target).slice(0, 200)}`,
         lastTs: Date.now(),
       });
       if (tab && tab.id) {
@@ -107,6 +183,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   if (msg && msg.type === "TH_SCAN_MEDIA") {
     scanMediaUrl(msg.url, msg.kind)
+      .then((report) => sendResponse({ ok: true, report }))
+      .catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }));
+    return true;
+  }
+  if (msg && msg.type === "TH_SCAN_YOUTUBE") {
+    scanYoutube(msg.url)
       .then((report) => sendResponse({ ok: true, report }))
       .catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }));
     return true;
