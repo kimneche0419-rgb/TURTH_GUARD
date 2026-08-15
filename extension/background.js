@@ -1,3 +1,17 @@
+// Chrome MV3 service worker: chrome.tabs.sendMessage / scripting API가 내부적으로
+// Promise를 생성해 reject 시 "Uncaught (in promise)" 로 보고하는 Chrome 런타임 특성 대응.
+// 커넥션 실패 에러는 정상 동작(content script 미주입 탭)이므로 전역에서 억제한다.
+self.addEventListener("unhandledrejection", (ev) => {
+  const msg = ev.reason && (ev.reason.message || String(ev.reason));
+  if (
+    msg.includes("Could not establish connection") ||
+    msg.includes("Receiving end does not exist") ||
+    msg.includes("message channel closed")
+  ) {
+    ev.preventDefault();  // DevTools 에러 패널에서 제거
+  }
+});
+
 // Truth History SDK - background service worker
 // LLM 역사 할루시네이션 검증 요청을 Truth History REST API로 중계한다.
 
