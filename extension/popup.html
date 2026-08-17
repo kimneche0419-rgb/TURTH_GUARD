@@ -11,19 +11,8 @@
     input[type=text], input[type=password] { width: 100%; box-sizing: border-box; padding: 7px 9px; border-radius: 7px; border: 1px solid #c4c4c4; background: #ffffff; color: #000000; font-size: 12px; outline: none; }
     input[type=text]:focus, input[type=password]:focus { border-color: #0f172a; }
     .row > label { font-size: 13px; font-weight: 600; color: #0f172a; }
-    select { width: 100%; padding: 6px 9px; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #333333; outline: none; }
+    select { width: 100%; padding: 6px 9px; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #333333; font-size: 12px; outline: none; }
     .row { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
-<label for="backendSelect">백엔드 모드</label>
-<select id="backendSelect">
-  <option value="auto">자동 (로컬 우선)</option>
-  <option value="local">로컬 백엔드 (localhost:8000)</option>
-  <option value="cloud">클라우드 백엔드 (Vercel)</option>
-  <option value="custom">사용자 설정</option>
-</select>
-<label id="customApiWrap" style="display:none;">사용자 백엔드 URL
-  <input id="customApiInput" type="text" placeholder="http://localhost:8000" />
-</label>
-<button id="checkBackend">💻 가용 백엔드 상태 확인</button>
     .row span { font-size: 12px; color: #000000; }
     .switch { position: relative; width: 40px; height: 22px; }
     .switch input { opacity: 0; width: 0; height: 0; }
@@ -33,9 +22,10 @@
     input:checked + .slider:before { transform: translateX(18px); }
     button { margin-top: 14px; width: 100%; padding: 9px; border: 1px solid #0f172a; border-radius: 8px; background: #ffffff; color: #000000; font-size: 13px; font-weight: 700; cursor: pointer; }
     button:hover { background: #f1f5f9; }
+    #checkBackend { margin-top: 10px; }
     .status { margin-top: 12px; padding: 10px; border-radius: 8px; background: #f8fafc; color: #000000; font-size: 12px; min-height: 20px; }
     .cred { font-size: 20px; font-weight: 800; color: #000000; }
-    .ok { color: #000000; } .warn { color: #000000; } .bad { color: #000000; }
+    .ok { color: #16a34a; } .warn { color: #d97706; } .bad { color: #dc2626; }
     .muted { color: #555555; }
     .reasons { margin: 6px 0 0 0; padding-left: 16px; }
     .reasons li { margin: 2px 0; color: #000000; }
@@ -50,6 +40,18 @@
     <span>자동 스캔(지원 LLM 사이트)</span>
     <label class="switch"><input type="checkbox" id="autoScan" /><span class="slider"></span></label>
   </div>
+
+  <label for="backendSelect">백엔드 모드</label>
+  <select id="backendSelect">
+    <option value="auto">자동 (로컬 우선)</option>
+    <option value="local">로컬 백엔드 (localhost:8000)</option>
+    <option value="cloud">클라우드 백엔드 (Vercel)</option>
+    <option value="custom">사용자 설정</option>
+  </select>
+  <label id="customApiWrap" style="display:none;">사용자 백엔드 URL
+    <input id="customApiInput" type="text" placeholder="http://localhost:8000" />
+  </label>
+  <button id="checkBackend">💻 가용 백엔드 상태 확인</button>
 
   <button id="save">설정 저장</button>
 

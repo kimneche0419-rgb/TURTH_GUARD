@@ -30,6 +30,43 @@ app.add_middleware(
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "truthhistory_uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+@app.get("/health")
+@app.get("/api/v1/health")
+async def health_check():
+    """
+    백엔드 헬스체크 및 설치된 멀티미디어 분석 모듈 가용성 정보를 반환합니다.
+    (크롬 확장 프로그램의 로컬-우선 자동 감지 지원)
+    """
+    try:
+        import PIL  # noqa: F401
+        import cv2  # noqa: F401
+        image_support = True
+    except ImportError:
+        image_support = False
+
+    try:
+        import cv2  # noqa: F401
+        video_support = True
+    except ImportError:
+        video_support = False
+
+    try:
+        import librosa  # noqa: F401
+        audio_support = True
+    except ImportError:
+        audio_support = False
+
+    return {
+        "status": "ok",
+        "service": "Truth History REST API Gateway",
+        "version": "0.1.0",
+        "features": {
+            "text": True,
+            "image": image_support,
+            "video": video_support,
+            "audio": audio_support,
+        }
+    }
 def get_media_type_by_ext(ext: str) -> str:
     ext = ext.lower()
     if ext in ["txt", "md"]: return "text"
