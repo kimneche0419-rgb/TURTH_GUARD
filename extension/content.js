@@ -270,13 +270,16 @@
   }
 
   function thScanUnscanned() {
+    // 텍스트 자동 스캔은 LLM 사이트 한정, 이미지·YouTube 스캔은 전 사이트 동작
+    // (기존: LLM 사이트 아닌 경우 조기 return 때문에 전사이트 이미지 배지가 동작하지 않던 결함)
     var sels = thSelectorsForHost();
-    if (!sels) return;  // 자동 텍스트 스캔은 LLM 사이트 한정
-    var seen = new Set();
-    for (var sel of sels) {
-      document.querySelectorAll(sel).forEach((n) => {
-        if (!seen.has(n)) { seen.add(n); thScanNode(n); }
-      });
+    if (sels) {
+      var seen = new Set();
+      for (var sel of sels) {
+        document.querySelectorAll(sel).forEach((n) => {
+          if (!seen.has(n)) { seen.add(n); thScanNode(n); }
+        });
+      }
     }
     thScanImagesEverywhere();
     thScanYoutubeEverywhere();
