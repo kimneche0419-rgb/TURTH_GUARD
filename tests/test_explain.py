@@ -100,6 +100,36 @@ class TestPerspectives(unittest.TestCase):
         self.assertEqual(face["verdict"], "미판정")
         self.assertEqual(perspectives["summary"]["suspected_angles"], 0)
 
+    def test_media_missing_modules_keep_all_angles_undecided(self):
+        # 의존성 부재(서버리스 등)에서는 어느 각도도 '정상'으로 집계하지 않고 판정 보류해야 한다 —
+        # "97%·LOW·정상" 판정과 "중립 결과 반환" 경고가 공존하던 모순 재발 방지
+        result = type("R", (), {})()
+        result.analysis_details = {
+            "error_level_analysis": {"module_available": False, "manipulation_score": 0.0, "mean_difference": 0.0},
+            "frequency_analysis": {"ai_probability": 0.1, "spike_count": 0, "module_available": False},
+            "deepfake_analysis": {"detected_faces": 0, "asymmetry_score": 0.0},
+        }
+        perspectives = ExplainEngine.build_perspectives(result, "image")
+        for angle in perspectives["angles"]:
+            self.assertEqual(angle["score"], None, angle["name"])
+            self.assertEqual(angle["verdict"], "미판정", angle["name"])
+        self.assertEqual(perspectives["summary"]["engaged_angles"], 0)
+        self.assertEqual(perspectives["summary"]["suspected_angles"], 0)
+        self.assertIn("검증 재료 부족", perspectives["summary"]["note"])
+
+    def test_image_with_modules_scores_angles(self):
+        # 모듈 정상 설치 환경에서는 신호 각도가 실제 점수로 판별에 참여한다
+        result = type("R", (), {})()
+        result.analysis_details = {
+            "error_level_analysis": {"module_available": True, "manipulation_score": 0.05, "mean_difference": 3.2},
+            "frequency_analysis": {"ai_probability": 0.08, "spike_count": 12, "module_available": True},
+            "deepfake_analysis": {"detected_faces": 1, "asymmetry_score": 0.12},
+        }
+        perspectives = ExplainEngine.build_perspectives(result, "image")
+        self.assertEqual(perspectives["summary"]["engaged_angles"], 3)
+        self.assertTrue(all(a["score"] is not None for a in perspectives["angles"]))
+        self.assertEqual(perspectives["summary"]["suspected_angles"], 0)
+
 
 class TestSignificance(unittest.TestCase):
     """지정학적 역사 왜곡 불허 사유 — 리포트 공통 콘텐츠 구조 검증"""

@@ -172,9 +172,9 @@ class ExplainEngine:
 
             perspectives.append(_perspective(
                 "FFT 주파수 노이즈", "GAN/Diffusion 격자 아티팩트 주파수 스파이크 탐지",
-                1.0 - fft.get("ai_probability", 0.0),
-                (f"주파수 스파이크 {fft.get('spike_count', 0)}개 · AI 생성 확률 {_f(fft.get('ai_probability'))}"
-                 if fft.get("module_available", False) else "정밀 FFT 미수행(의존성 부재 폴백) — 참고용")))
+                None if not fft.get("module_available", False) else 1.0 - fft.get("ai_probability", 0.0),
+                "정밀 FFT 미수행(의존성 부재 폴백) — 판정 보류" if not fft.get("module_available", False)
+                else f"주파수 스파이크 {fft.get('spike_count', 0)}개 · AI 생성 확률 {_f(fft.get('ai_probability'))}"))
 
             if face.get("detected_faces", 0) > 0:
                 perspectives.append(_perspective(
@@ -192,21 +192,22 @@ class ExplainEngine:
                 deepfake = d.get("deepfake_results", {}) or {}
                 perspectives.append(_perspective(
                     "프레임 연속성(Jitter)", "샘플 프레임 간 히스토그램 차이 기반 temporal jitter 지수",
-                    1.0 - temporal.get("jitter_index", 0.0),
-                    f"Jitter 지수 {_f(temporal.get('jitter_index'))}"
-                    + ("" if temporal.get("module_available", True) else " (모듈 미설치 — 기본값)")))
+                    None if not temporal.get("module_available", True) else 1.0 - temporal.get("jitter_index", 0.0),
+                    "모듈 미설치 — 판정 보류" if not temporal.get("module_available", True)
+                    else f"Jitter 지수 {_f(temporal.get('jitter_index'))}"))
                 perspectives.append(_perspective(
                     "안면 합성(딥페이크)", "프레임 샘플 안면 비대칭 최댓값 기반 페이스 스왑 탐지",
-                    1.0 - deepfake.get("max_manipulation_probability", 0.0),
-                    f"검출 안면 {deepfake.get('detected_faces_total', 0)}개 · 최대 합성 확률 {_f(deepfake.get('max_manipulation_probability'))}"))
+                    None if not deepfake.get("module_available", True) else 1.0 - deepfake.get("max_manipulation_probability", 0.0),
+                    "모듈 미설치 — 판정 보류" if not deepfake.get("module_available", True)
+                    else f"검출 안면 {deepfake.get('detected_faces_total', 0)}개 · 최대 합성 확률 {_f(deepfake.get('max_manipulation_probability'))}"))
             else:
                 spectral = d.get("spectral_analysis", {}) or {}
                 phishing = d.get("phishing_analysis", {}) or {}
                 perspectives.append(_perspective(
                     "음향 스펙트럼(MFCC/HNR)", "MFCC 유사도·조화-비조화 비율 기반 합성 음성 탐지",
-                    1.0 - spectral.get("synthetic_voice_probability", 0.0),
-                    f"합성 음성 확률 {_f(spectral.get('synthetic_voice_probability'))}"
-                    + ("" if spectral.get("module_available", True) else " (모듈 미설치 — 중립 처리)")))
+                    None if not spectral.get("module_available", True) else 1.0 - spectral.get("synthetic_voice_probability", 0.0),
+                    "모듈 미설치 — 판정 보류" if not spectral.get("module_available", True)
+                    else f"합성 음성 확률 {_f(spectral.get('synthetic_voice_probability'))}"))
                 perspectives.append(_perspective(
                     "사칭·유도 어휘", "STT 전사 텍스트의 금전·허위정보 유도 패턴 탐지",
                     1.0 - phishing.get("phishing_probability", 0.0),
