@@ -65,6 +65,14 @@ class TextAnalyzer(BaseAnalyzer):
                 else:
                     credibility_score = min(1.0, credibility_score + 0.05)
 
+        # 결정론 사료 위반(연표 상충·미정정 시대착오) 상한 — 가중합 희석 방지.
+        # 선동성(중립 1.0)·출처(NEI 중립 0.5) 가중치가 국사편찬위원회 연표라는
+        # 결정론 위반을 0.5 판정 임계 아래로 묽게 만들지 않는다(LLM 심사 상한과 동일 기준).
+        chrono_hard = (fact_results.get("chronology", {}).get("contradiction_count", 0) or 0) > 0
+        ana_hard = bool(fact_results.get("anachronism", {}).get("anachronism")) and not fact_results.get("debunked")
+        if chrono_hard or ana_hard:
+            credibility_score = min(credibility_score, 0.35)
+
         # 위험도 산출
 
         risk_level = self._determine_risk_level(credibility_score, ai_prob)

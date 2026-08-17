@@ -72,22 +72,23 @@ def scan(target_path: str, config: str, format: str, threshold: float):
             import sys
             sys.exit(2)
 
+    # 매체 유형 공통 산정 (json/리포트 공용)
+    media_type = "unknown"
+    if is_url:
+        media_type = "text"
+    elif file_ext in ["txt", "md"]:
+        media_type = "text"
+    elif file_ext in ["jpg", "jpeg", "png", "webp"]:
+        media_type = "image"
+    elif file_ext in ["mp4", "avi", "mov", "mkv"]:
+        media_type = "video"
+    elif file_ext in ["wav", "mp3", "m4a", "flac"]:
+        media_type = "audio"
+
     # 포맷별 결과 출력
     if format == "json":
         from truthhistory.explain.engine import ExplainEngine
-        
-        media_type = "unknown"
-        if is_url:
-            media_type = "text"
-        elif file_ext in ["txt", "md"]:
-            media_type = "text"
-        elif file_ext in ["jpg", "jpeg", "png", "webp"]:
-            media_type = "image"
-        elif file_ext in ["mp4", "avi", "mov", "mkv"]:
-            media_type = "video"
-        elif file_ext in ["wav", "mp3", "m4a", "flac"]:
-            media_type = "audio"
-            
+
         anomalies = []
         for reason in result.reasons:
             anomalies.append({
@@ -122,21 +123,50 @@ def scan(target_path: str, config: str, format: str, threshold: float):
         console.print(table)
         
     else:  # 'text' 기본 모드
+        from truthhistory.explain.engine import ExplainEngine, SIGNIFICANCE
+
+        perspectives = ExplainEngine.build_perspectives(result, media_type)
+        tone_style = {"ok": "green", "warn": "yellow", "bad": "red", "neutral": "dim"}
+        # 종합 게이지 톤 — 다각도 요약(의심→적색, 주의→황색, 전부 정상→녹색)
+        _summary = perspectives["summary"]
+        overall_tone = "bad" if _summary["suspected_angles"] else ("warn" if _summary["caution_angles"] else "ok")
+
         console.print("\n[bold]========== Truth History Scan Report ==========[/bold]")
         console.print(f"대상 파일: [cyan]{target_path}[/cyan]")
         console.print(f"종합 신뢰도: {result.credibility_score:.2f} ({result.risk_level} RISK)")
-        
+        console.print(f"[{tone_style[overall_tone]}]"
+                      f"{ExplainEngine.render_gauge(result.credibility_score)} {result.credibility_score * 100:.0f}%[/]")
+
         if result.is_manipulated:
             console.log("스캔 결과: [bold red]변조 및 허위 정보 의심[/bold red]")
         else:
             console.log("스캔 결과: [bold green]정상 콘텐츠[/bold green]")
-            
+
+        # ── 다각도 판별/분석 — 각 독립 렌즈별 점수·판정을 막대로 시각화 ──
+        summary = perspectives["summary"]
+        console.print(f"\n[bold]다각도 판별 ({summary['engaged_angles']}/{summary['total_angles']}각도 판별 참여):[/bold]"
+                      f" {summary['note']}")
+        for angle in perspectives["angles"]:
+            style = tone_style.get(angle.get("tone", "neutral"), "dim")
+            if angle["score"] is None:
+                bar, score_txt = "·" * 20, "미판정"
+            else:
+                bar, score_txt = ExplainEngine.render_gauge(angle["score"], 20), f"{angle['score']:.2f}"
+            console.print(f" - [{style}]{bar} {score_txt} {angle['verdict']}[/] "
+                          f"[bold]{angle['name']}[/bold] — [dim]{angle['detail']}[/dim]")
+
         console.print("\n[bold]탐지 근거:[/bold]")
         if result.reasons:
             for reason in result.reasons:
                 console.print(f" - [yellow]{reason}[/yellow]")
         else:
             console.print(" - 특이사항 없음")
+
+        # ── 지정학적 역사 왜곡이 허용되지 않는 이유 (리포트 공통 콘텐츠) ──
+        console.print(f"\n[bold]📌 {SIGNIFICANCE['title']}[/bold]")
+        console.print(f"[dim]{SIGNIFICANCE['summary']}[/dim]")
+        for reason in SIGNIFICANCE["reasons"]:
+            console.print(f" - [bold]{reason['tag']}[/bold]: {reason['detail']}")
 
     # 변조 판정 여부에 따른 프로세스 종료 코드 리턴 (CI/CD 자동화 연동용)
     import sys

@@ -69,3 +69,19 @@
 .th-ext-d-src { font-size: 11px; color: #555; text-transform: uppercase; font-weight: 700; }
 .th-ext-d-link { color: #0369a1; text-decoration: underline; margin-left: 6px; }
 .th-ext-d-link:hover { color: #075985; }
+
+/* 시각 자료 — 신뢰도 게이지·다각도 판별 막대 (배너/상세 패널 공용) */
+.th-ext-gauge {
+  position: relative; height: 8px; margin: 6px 0 2px 0;
+  border-radius: 999px; background: rgba(128, 128, 128, 0.25);
+  overflow: hidden;
+}
+.th-ext-gauge-fill { height: 100%; border-radius: 999px; transition: width .3s ease; }
+.th-ext-angles { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.th-ext-angle-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.th-ext-angle-name { font-weight: 700; color: #000; }
+.th-ext-angle-score { font-size: 11px; font-weight: 700; white-space: nowrap; }
+.th-ext-angle-detail { font-size: 11px; color: #555; margin-top: 2px; }
+.th-ext-angle-note { font-size: 12px; font-weight: 600; color: #000; margin-bottom: 2px; }
+.th-ext-sig-summary { font-size: 12px; color: #333; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; }
+.th-ext-sig-list li { margin: 4px 0; }

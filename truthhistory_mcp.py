@@ -7,6 +7,7 @@ import traceback
 # Ensure we can import truthhistory
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 import truthhistory
+from truthhistory.explain.engine import ExplainEngine, SIGNIFICANCE
 from truthhistory.utils import load_env
 
 load_env()  # 프로젝트 루트 .env → OS 환경 변수 (기존 환경 변수 우선)
@@ -81,18 +82,20 @@ def handle_call_tool(request_id, name, arguments):
             
             result = truthhistory.detect_text(text)
             
-            # Format output
+            # Format output — 다각도 판별 + 지정학 왜곡 불허 사유 포함
             report = {
                 "is_manipulated": result.is_manipulated,
                 "credibility_score": result.credibility_score,
                 "risk_level": result.risk_level,
                 "ai_probability": result.ai_probability,
                 "reasons": result.reasons,
-                "analysis_details": result.analysis_details
+                "analysis_details": result.analysis_details,
+                "perspectives": ExplainEngine.build_perspectives(result, "text"),
+                "significance": SIGNIFICANCE
             }
-            
+
             return make_success_tool_response(request_id, report)
-            
+
         elif name == "scan_file":
             path = arguments.get("path", "")
             if not path or not os.path.exists(path):
@@ -119,7 +122,13 @@ def handle_call_tool(request_id, name, arguments):
                 "credibility_score": result.credibility_score,
                 "risk_level": result.risk_level,
                 "ai_probability": result.ai_probability,
-                "reasons": result.reasons
+                "reasons": result.reasons,
+                "perspectives": ExplainEngine.build_perspectives(result, {
+                    "jpg": "image", "jpeg": "image", "png": "image", "webp": "image",
+                    "mp4": "video", "avi": "video", "mov": "video", "mkv": "video",
+                    "wav": "audio", "mp3": "audio", "m4a": "audio", "flac": "audio",
+                }.get(ext, "text")),
+                "significance": SIGNIFICANCE
             }
             return make_success_tool_response(request_id, report)
             

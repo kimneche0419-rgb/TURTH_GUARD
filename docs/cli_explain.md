@@ -133,6 +133,11 @@ class ExplainEngine:
                 "editing_artifact_score": round(result.analysis_details.get("artifact_score", 0.0), 4),
                 "semantic_consistency_score": round(result.analysis_details.get("semantic_score", 1.0), 4)
             },
+            # 다각도 판별/분석 — 매체 유형별 독립 렌즈(텍스트: 사료 정합성·연표 KB·AI 생성·
+            # 선동성·출처 신뢰도·시대착오 / 이미지·영상·오디오: 해당 신호 각도)별 점수·판정·근거
+            "perspectives": ExplainEngine.build_perspectives(result, media_type),
+            # 지정학적 역사 왜곡이 허용되지 않는 이유 — 모든 리포트 공통 콘텐츠
+            "significance": SIGNIFICANCE,
             "explanations": []
         }
         

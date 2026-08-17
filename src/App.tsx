@@ -33,12 +33,40 @@ interface Explanation {
   location: string;
 }
 
+interface PerspectiveAngle {
+  name: string;
+  basis: string;
+  score: number | null;
+  verdict: '정상' | '주의' | '의심' | '미판정';
+  tone: 'ok' | 'warn' | 'bad' | 'neutral';
+  detail: string;
+}
+
+interface Perspectives {
+  summary: {
+    total_angles: number;
+    engaged_angles: number;
+    suspected_angles: number;
+    caution_angles: number;
+    note: string;
+  };
+  angles: PerspectiveAngle[];
+}
+
+interface Significance {
+  title: string;
+  summary: string;
+  reasons: { tag: string; detail: string }[];
+}
+
 interface ScanResult {
   target_file: string;
   media_type: 'text' | 'image' | 'video' | 'audio';
   decision: Decision;
   metrics: Metric;
   explanations: Explanation[];
+  perspectives?: Perspectives;
+  significance?: Significance;
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:8000');
@@ -112,6 +140,15 @@ export default function App() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getToneColor = (tone: string) => {
+    switch (tone) {
+      case 'ok': return '#10b981';
+      case 'warn': return '#f59e0b';
+      case 'bad': return '#ef4444';
+      default: return '#94a3b8';
     }
   };
 
@@ -437,6 +474,42 @@ export default function App() {
               </div>
             </div>
 
+            {/* Multi-angle perspectives — 다각도 판별/분석 시각 자료 */}
+            {result.perspectives && (
+              <div style={{ borderTop: '1px solid #334155', paddingTop: '24px', marginBottom: '24px' }}>
+                <h4 style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🔭 다각도 판별/분석 ({result.perspectives.summary.engaged_angles}/{result.perspectives.summary.total_angles}각도)
+                </h4>
+                <p style={{ fontSize: '13px', color: '#cbd5e1', margin: '0 0 16px 0' }}>{result.perspectives.summary.note}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {result.perspectives.angles.map((angle, idx) => (
+                    <div key={idx}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '13px' }}>
+                        <span style={{ fontWeight: 600 }}>
+                          {angle.name}
+                          <span style={{ color: '#64748b', fontWeight: 400, fontSize: '12px' }}> — {angle.basis}</span>
+                        </span>
+                        <span style={{ fontWeight: 700, color: getToneColor(angle.tone) }}>
+                          {angle.verdict}{angle.score !== null ? ` · ${Math.round(angle.score * 100)}%` : ''}
+                        </span>
+                      </div>
+                      <div style={{ width: '100%', height: '8px', backgroundColor: '#334155', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{
+                          width: `${angle.score !== null ? angle.score * 100 : 0}%`,
+                          height: '100%',
+                          backgroundColor: getToneColor(angle.tone),
+                          borderRadius: '4px'
+                        }} />
+                      </div>
+                      {angle.detail && (
+                        <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>{angle.detail}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Explanations section */}
             <div style={{ borderTop: '1px solid #334155', paddingTop: '24px', marginBottom: '24px' }}>
               <h4 style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -479,6 +552,30 @@ export default function App() {
                 </div>
               )}
             </div>
+
+            {/* Significance — 지정학적 역사 왜곡 불허 사유 */}
+            {result.significance && (
+              <div style={{ borderTop: '1px solid #334155', paddingTop: '24px', marginBottom: '24px' }}>
+                <h4 style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  📌 {result.significance.title}
+                </h4>
+                <p style={{
+                  fontSize: '13px', color: '#cbd5e1', margin: '0 0 14px 0',
+                  backgroundColor: 'rgba(56, 189, 248, 0.06)', border: '1px solid rgba(56, 189, 248, 0.25)',
+                  borderRadius: '8px', padding: '12px'
+                }}>
+                  {result.significance.summary}
+                </p>
+                <ul style={{ margin: 0, paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {result.significance.reasons.map((reason, idx) => (
+                    <li key={idx} style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: 1.6 }}>
+                      <strong>{reason.tag}</strong>
+                      <span style={{ color: '#94a3b8' }}> — {reason.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Back button */}
             <button

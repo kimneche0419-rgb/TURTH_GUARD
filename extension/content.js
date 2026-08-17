@@ -63,6 +63,56 @@
     return { text: "정상", cls: "th-ext-good" };
   }
 
+  // 시각 자료: 신뢰도 게이지 바 (리포트 공통 위젯)
+  function thGauge(score, toneColor) {
+    var pct = Math.round(Math.max(0, Math.min(1, score == null ? 0 : score)) * 100);
+    return (
+      '<div class="th-ext-gauge">' +
+        '<div class="th-ext-gauge-fill" style="width:' + pct + '%; background:' + (toneColor || "#16a34a") + ';"></div>' +
+      '</div>'
+    );
+  }
+
+  // 시각 자료: 다각도 판별 막대 + 종합 노트
+  function thPerspectivesHtml(report) {
+    var p = report && report.perspectives;
+    if (!p || !p.angles || !p.angles.length) return "";
+    var s = p.summary || {};
+    var toneColor = { ok: "#16a34a", warn: "#d97706", bad: "#dc2626", neutral: "#94a3b8" };
+    var bars = p.angles.map(function (a) {
+      var color = toneColor[a.tone] || "#94a3b8";
+      var pct = a.score == null ? 0 : Math.round(a.score * 100);
+      var scoreTxt = a.score == null ? "미판정" : pct + "%";
+      return (
+        '<div class="th-ext-angle">' +
+          '<div class="th-ext-angle-head"><span class="th-ext-angle-name">' + thEscapeHtml(a.name) +
+            '</span><span class="th-ext-angle-score" style="color:' + color + ';">' + thEscapeHtml(a.verdict) + " · " + scoreTxt + '</span></div>' +
+          thGauge(a.score == null ? 0 : a.score, color) +
+          '<div class="th-ext-angle-detail">' + thEscapeHtml(a.detail || "") + "</div>" +
+        "</div>"
+      );
+    }).join("");
+    return (
+      '<div class="th-ext-d-sec">🔭 다각도 판별/분석 (' + (s.engaged_angles != null ? s.engaged_angles : "?") + "/" + (s.total_angles != null ? s.total_angles : "?") + "각도)</div>" +
+      (s.note ? '<div class="th-ext-angle-note">' + thEscapeHtml(s.note) + "</div>" : "") +
+      '<div class="th-ext-angles">' + bars + "</div>"
+    );
+  }
+
+  // 지정학적 역사 왜곡 불허 사유 — 리포트 공통 콘텐츠
+  function thSignificanceHtml(report) {
+    var sig = report && report.significance;
+    if (!sig || !sig.title) return "";
+    var items = (sig.reasons || []).map(function (r) {
+      return '<li><b>' + thEscapeHtml(r.tag) + "</b>: " + thEscapeHtml(r.detail) + "</li>";
+    }).join("");
+    return (
+      '<div class="th-ext-d-sec">📌 ' + thEscapeHtml(sig.title) + "</div>" +
+      (sig.summary ? '<div class="th-ext-sig-summary">' + thEscapeHtml(sig.summary) + "</div>" : "") +
+      (items ? '<ul class="th-ext-d-list th-ext-sig-list">' + items + "</ul>" : "")
+    );
+  }
+
   function thBuildBanner(report) {
     var d = (report && report.decision) || {};
     var cred = Math.round(((d.credibility_score == null ? 1 : d.credibility_score)) * 100);
@@ -82,6 +132,7 @@
           ${thEscapeHtml(thVerdict(d).text)}
         </span>
       </div>
+      ${thGauge(d.credibility_score == null ? 1 : d.credibility_score, thRiskColor(level))}
       <div class="th-ext-reasons">${reasonsHtml}</div>`;
     wrap.style.cursor = "pointer";
     wrap.title = "클릭 시 상세 리포트·근거 자료를 표시합니다";
@@ -108,9 +159,12 @@
     panel.innerHTML =
       `<div class="th-ext-d-head"><span>🛡️ Truth History 상세 리포트</span><button class="th-ext-d-x">✕</button></div>
        <div class="th-ext-d-row"><b>신뢰도</b> ${cred}% · ${thEscapeHtml(d.risk_level || "LOW")} — <span class="th-ext-tag ${thVerdict(d).cls}">${thEscapeHtml(thVerdict(d).text)}</span></div>
+       ${thGauge(d.credibility_score == null ? 1 : d.credibility_score, thRiskColor(d.risk_level || "LOW"))}
        <div class="th-ext-d-row"><b>AI 생성/합성 확률</b> ${Math.round(((m.ai_generation_probability == null ? 0 : m.ai_generation_probability)) * 100)}%</div>
        <div class="th-ext-d-sec">📋 판정 근거</div>
        <ul class="th-ext-d-list">${reasons.length ? reasons.map((r) => `<li>${thEscapeHtml(r)}</li>`).join("") : "<li>특이 징후 없음</li>"}</ul>
+       ${thPerspectivesHtml(report)}
+       ${thSignificanceHtml(report)}
        ${refHtml}${evHtml}`;
     panel.querySelector(".th-ext-d-x").onclick = () => panel.remove();
     return panel;
