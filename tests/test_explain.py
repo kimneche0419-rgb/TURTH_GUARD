@@ -165,6 +165,52 @@ class TestSignificance(unittest.TestCase):
         for key in ["target_file", "media_type", "decision", "metrics", "explanations"]:
             self.assertIn(key, report)
 
+    def test_significance_only_for_history_domain_text(self):
+        # 지정학 섹션은 역사 영역 콘텐츠에만 — 일반 텍스트(요리·일상)에는 미표시
+        analyzer = TextAnalyzer()
+        for p in _no_external_evidence():
+            p.start()
+        try:
+            history = analyzer.analyze("임진왜란은 1592년에 발발했다")
+            daily = analyzer.analyze("오늘 저녁 메뉴는 크림 파스타이고 맛있었다")
+        finally:
+            for p in _no_external_evidence():
+                p.stop()
+
+        self.assertTrue(history.analysis_details["history_relevant"])
+        self.assertFalse(daily.analysis_details["history_relevant"])
+
+        hist_report = ExplainEngine.format_explanations("(t)", "text", history, [])
+        daily_report = ExplainEngine.format_explanations("(t)", "text", daily, [])
+        self.assertIsNotNone(hist_report["significance"])
+        self.assertIsNone(daily_report["significance"])
+
+    def test_significance_media_reports_have_no_geopolitics(self):
+        # 이미지·영상·오디오는 위변조 판별 리포트 — 지정학 섹션 없음
+        result = type("R", (), {})()
+        result.analysis_details = {}
+        result.is_manipulated = False
+        result.credibility_score = 0.5
+        result.risk_level = "MEDIUM"
+        result.ai_probability = 0.0
+        self.assertFalse(ExplainEngine.should_include_significance(result, "image"))
+        self.assertFalse(ExplainEngine.should_include_significance(result, "video"))
+        self.assertFalse(ExplainEngine.should_include_significance(result, "audio"))
+        report = ExplainEngine.format_explanations("(img)", "image", result, [])
+        self.assertIsNone(report["significance"])
+
+    def test_significance_covers_multiple_disputes_with_map(self):
+        # 쟁점 다각화 — 독도 편중 금지(간도·사할린·동북공정·강제동원·6·25 포함) + 지도 제시
+        joined = " ".join(r["tag"] + r["detail"] for r in SIGNIFICANCE["reasons"])
+        for case in ["독도", "간도", "사할린", "동북공정", "강제동원", "위안부", "6·25"]:
+            self.assertIn(case, joined, case)
+        map_info = SIGNIFICANCE["map"]
+        self.assertTrue(map_info["svg"].startswith("<svg"))
+        self.assertIn("독도", map_info["svg"])
+        self.assertGreaterEqual(len(map_info["sources"]), 3)
+        for src in map_info["sources"]:
+            self.assertTrue(src["url"].startswith("https://"))
+
     def test_gauge_rendering_bounds(self):
         self.assertEqual(ExplainEngine.render_gauge(1.0), "█" * 20)
         self.assertEqual(ExplainEngine.render_gauge(0.0), "░" * 20)

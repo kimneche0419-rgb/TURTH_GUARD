@@ -162,11 +162,17 @@ def scan(target_path: str, config: str, format: str, threshold: float):
         else:
             console.print(" - 특이사항 없음")
 
-        # ── 지정학적 역사 왜곡이 허용되지 않는 이유 (리포트 공통 콘텐츠) ──
-        console.print(f"\n[bold]📌 {SIGNIFICANCE['title']}[/bold]")
-        console.print(f"[dim]{SIGNIFICANCE['summary']}[/dim]")
-        for reason in SIGNIFICANCE["reasons"]:
-            console.print(f" - [bold]{reason['tag']}[/bold]: {reason['detail']}")
+        # ── 지정학적 역사 왜곡이 허용되지 않는 이유 — 역사 영역 콘텐츠에만 표시 ──
+        if media_type == "text" and result.analysis_details.get("history_relevant"):
+            console.print(f"\n[bold]📌 {SIGNIFICANCE['title']}[/bold]")
+            console.print(f"[dim]{SIGNIFICANCE['summary']}[/dim]")
+            for reason in SIGNIFICANCE["reasons"]:
+                console.print(f" - [bold]{reason['tag']}[/bold]: {reason['detail']}")
+            map_info = SIGNIFICANCE.get("map", {})
+            if map_info:
+                console.print(f"[bold]🗺️ {map_info['title']}[/bold] [dim]({map_info['note']})[/dim]")
+                for src in map_info.get("sources", []):
+                    console.print(f" - [link={src['url']}]{src['url']}[/link] — {src['label']}")
 
     # 변조 판정 여부에 따른 프로세스 종료 코드 리턴 (CI/CD 자동화 연동용)
     import sys

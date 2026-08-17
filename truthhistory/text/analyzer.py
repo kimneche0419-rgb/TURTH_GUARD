@@ -48,6 +48,16 @@ class TextAnalyzer(BaseAnalyzer):
         source_results = self.verify_source_credibility(data)
         source_score = source_results.get("credibility_score", 0.5)
 
+        # 역사 영역 관련성 — 연표 KB 교차 검증·시대착오·역사 키워드(일반 콘텐츠엔 지정학 섹션 미표시)
+        from truthhistory.text.knowledge import is_history_related
+        _chrono = fact_results.get("chronology", {})
+        _ana = fact_results.get("anachronism", {})
+        history_relevant = (
+            (_chrono.get("verified_count", 0) + _chrono.get("contradiction_count", 0)) > 0
+            or bool(_ana.get("anachronism"))
+            or is_history_related(data)
+        )
+
         # 가중합 스코어링 공식 적용
         credibility_score = (
             self.weights["fact_weight"] * consistency_score +
@@ -136,7 +146,9 @@ class TextAnalyzer(BaseAnalyzer):
                 "sensationalism": sensationalism_results,
                 "source_credibility": source_results,
                 "ai_generation": ai_results,
-                "llm_judge": llm_judge
+                "llm_judge": llm_judge,
+                # 역사 영역 관련성 — 지정학 왜곡 불허 사유 섹션은 역사 콘텐츠에만 표시
+                "history_relevant": history_relevant,
             },
             reasons=reasons
         )

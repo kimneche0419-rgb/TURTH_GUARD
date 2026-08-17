@@ -57,6 +57,12 @@ interface Significance {
   title: string;
   summary: string;
   reasons: { tag: string; detail: string }[];
+  map?: {
+    title: string;
+    note: string;
+    svg: string;
+    sources: { label: string; url: string }[];
+  };
 }
 
 interface ScanResult {
@@ -574,6 +580,26 @@ export default function App() {
                     </li>
                   ))}
                 </ul>
+
+                {result.significance.map && (
+                  <div style={{ marginTop: '16px' }}>
+                    <h5 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 8px 0' }}>
+                      🗺️ {result.significance.map.title}
+                    </h5>
+                    <div
+                      style={{ border: '1px solid #334155', borderRadius: '8px', padding: '8px', backgroundColor: '#0f172a' }}
+                      dangerouslySetInnerHTML={{ __html: result.significance.map.svg }}
+                    />
+                    <p style={{ fontSize: '12px', color: '#64748b', margin: '6px 0 8px 0' }}>{result.significance.map.note}</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                      {result.significance.map.sources.map((src, idx) => (
+                        <a key={idx} href={src.url} target="_blank" rel="noopener" style={{ fontSize: '12px', color: '#38bdf8' }}>
+                          {src.label} ↗
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

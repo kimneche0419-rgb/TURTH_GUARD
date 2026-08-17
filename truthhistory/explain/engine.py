@@ -2,9 +2,9 @@
 from typing import Any, Dict, List, Optional
 from truthhistory.base import AnalysisResult
 
-# 지정학적 역사 왜곡이 허용될 수 없는 이유 — 모든 분석 리포트에 공통 포함되는 콘텐츠.
-# 생성형 AI 시대의 역사 왜곡은 단순 오류가 아니라 영토·외교·교육에 직결되는
-# 국가적 이해관계 침해이므로, 탐지 결과와 함께 그 '왜(Why)'를 반드시 함께 전달한다.
+# 지정학적 역사 왜곡이 허용될 수 없는 이유 — 역사 영역 콘텐츠 리포트에만 포함.
+# 쟁점은 단일 사례(독도)에 치우치지 않게 영토(독도·동해·간도·사할린),
+# 고대사 귀속(동북공정), 식민 지배(강제동원·위안부), 전쟁 발발 주체(6·25)로 다각화.
 SIGNIFICANCE: Dict[str, Any] = {
     "title": "지정학적으로 역사가 왜곡되어서는 안 되는 이유",
     "summary": (
@@ -15,8 +15,13 @@ SIGNIFICANCE: Dict[str, Any] = {
     "reasons": [
         {
             "tag": "영토·주권 분쟁의 근거 오염",
-            "detail": "독도·동해 표기 등 영토·해양 권리 주장은 사료와 역사적 사실관계를 국제법적 근거로 삼는다. "
-                      "왜곡된 서술이 반복·정착되면 외교 협상과 국제 심판에서 실질적 손해로 직결된다.",
+            "detail": "독도와 동해 표기, 간도 영토, 사할린 강제이주 동포 문제 등은 사료와 역사적 사실관계를 "
+                      "국제법적 근거로 삼는다. 왜곡된 서술이 반복·정착되면 외교 협상과 국제 심판에서 실질적 손해로 직결된다.",
+        },
+        {
+            "tag": "고대사 귀속 왜곡(동북공정)",
+            "detail": "고구려·발해사를 중국 지방사로 편입하려는 동북공정류 서술은 한반도 고대사의 연속성을 단절시키고 "
+                      "국제 학계·교과서 서술의 근거를 흔든다. 고대사 귀속은 민족사 정체성의 출발점 문제다.",
         },
         {
             "tag": "집단 기억·정체성의 세대 오염",
@@ -30,8 +35,8 @@ SIGNIFICANCE: Dict[str, Any] = {
         },
         {
             "tag": "가해·피해 관계의 전도 위험",
-            "detail": "침략·점령·식민지배 등 가해 사실의 은폐·축소·전도는 피해자의 명예와 인류 공통의 "
-                      "역사 교훈을 훼손한다. 이는 과거사 부인이 다시 범죄의 문턱을 낮추는 근거로 악용되는 경로이기도 하다.",
+            "detail": "일제강점기 강제동원·위안부 등 피해 사실의 은폐·축소, 6·25 전쟁 발발 주체 왜곡 등은 피해자의 명예와 "
+                      "인류 공통의 역사 교훈을 훼손한다. 과거사 부인은 다시 범죄의 문턱을 낮추는 근거로 악용된다.",
         },
         {
             "tag": "생성형 AI에 의한 왜곡 증폭",
@@ -39,6 +44,50 @@ SIGNIFICANCE: Dict[str, Any] = {
                       "표준화되면 원본 사료와의 구별이 사실상 불가능해지므로, 유통 단계의 검증 가드레일이 필수다.",
         },
     ],
+    "map": {
+        "title": "역사·영토 쟁점 지도",
+        "note": "개념도 — 실제 국경·영역과 다를 수 있음. 공식 지도는 아래 출처 확인.",
+        "svg": (
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 260" '
+            'style="max-width:100%;height:auto;font-family:sans-serif">'
+            '<rect width="360" height="260" fill="#dceaf5"/>'
+            # 아시아 대륙(만주·중국)
+            '<path d="M0 0h360v56c-26 4-46 16-64 32l-14 24c-30 14-58 24-90 28L104 92C68 84 30 66 0 40Z" '
+            'fill="#efe8d5" stroke="#b8a878" stroke-width="1"/>'
+            # 사할린
+            '<path d="M306 10c10 20 14 42 11 64l-9 1c2-23-1-44-10-61Z" fill="#efe8d5" stroke="#b8a878" stroke-width="1"/>'
+            # 일본 열도
+            '<path d="M318 130c10 16 15 36 13 56s-8 36-15 48c3-18-1-36-9-52s-11-32-5-46Z" '
+            'fill="#efe8d5" stroke="#b8a878" stroke-width="1"/>'
+            # 한반도
+            '<path d="M186 96c11 12 13 30 9 49-4 20-10 38-19 56-6 12-14 25-22 23-8-2-8-15-6-27 4-20 0-37-4-54-4-16-2-32 6-43 12-14 26-15 36-4Z" '
+            'fill="#f7f2e3" stroke="#8d7f57" stroke-width="1.2"/>'
+            # 국경(백두산 부근) 점선
+            '<path d="M177 108c6-8 17-13 28-10" fill="none" stroke="#7c6f4d" stroke-width="1.4" stroke-dasharray="4 3"/>'
+            # 해역명
+            '<text x="96" y="178" font-size="11" fill="#44688a">서해(황해)</text>'
+            '<text x="224" y="152" font-size="11" fill="#44688a">동해</text>'
+            '<text x="168" y="238" font-size="11" fill="#44688a">남해</text>'
+            # 쟁점 마커
+            '<circle cx="190" cy="102" r="4" fill="#b91c1c"/>'
+            '<text x="150" y="90" font-size="10" fill="#7f1d1d">백두산·국경(고구려·발해)</text>'
+            '<circle cx="213" cy="70" r="4" fill="#b91c1c"/>'
+            '<text x="200" y="60" font-size="10" fill="#7f1d1d">간도</text>'
+            '<circle cx="258" cy="170" r="4" fill="#b91c1c"/>'
+            '<text x="248" y="186" font-size="10" fill="#7f1d1d">독도</text>'
+            '<circle cx="312" cy="42" r="4" fill="#b91c1c"/>'
+            '<text x="292" y="30" font-size="10" fill="#7f1d1d">사할린</text>'
+            '<text x="318" y="200" font-size="10" fill="#6b7280">일본</text>'
+            '<text x="30" y="30" font-size="10" fill="#6b7280">만주·중국</text>'
+            '<text x="12" y="252" font-size="9" fill="#64748b">개념도 — 실제 국경·영역과 다름</text>'
+            '</svg>'
+        ),
+        "sources": [
+            {"label": "독도 (해양수산부 독도 종합정보)", "url": "https://www.dokdo.go.kr"},
+            {"label": "동해 표기·고구려사 자료 (동북아역사재단)", "url": "https://www.nahf.or.kr"},
+            {"label": "한국사연표 (국사편찬위원회)", "url": "https://www.history.go.kr"},
+        ],
+    },
 }
 
 # 다각도 판별 기준 — 신뢰도 관점 점수(높을수록 정상)에 대한 판정 문구
@@ -244,6 +293,17 @@ class ExplainEngine:
         return "█" * filled + "░" * (width - filled)
 
     @staticmethod
+    def should_include_significance(result: AnalysisResult, media_type: str) -> bool:
+        """지정학 왜곡 불허 사유는 '역사 영역' 콘텐츠에만 표시한다.
+
+        - 이미지·영상·오디오는 위변조 판별 리포트이므로 미표시
+        - 텍스트는 분석기가 산출한 history_relevant(KB 교차 검증·시대착오·역사 키워드) 기준
+        """
+        if media_type != "text":
+            return False
+        return bool((result.analysis_details or {}).get("history_relevant", False))
+
+    @staticmethod
     def format_explanations(
         target_file: str,
         media_type: str,
@@ -267,7 +327,7 @@ class ExplainEngine:
                 "semantic_consistency_score": round(result.analysis_details.get("semantic_score", 1.0), 4)
             },
             "perspectives": ExplainEngine.build_perspectives(result, media_type),
-            "significance": SIGNIFICANCE,
+            "significance": SIGNIFICANCE if ExplainEngine.should_include_significance(result, media_type) else None,
             "explanations": [],
             "evidence": (result.analysis_details.get("fact_consistency", {}) or {}).get("evidence_sample", []),
             "reference": (result.analysis_details.get("fact_consistency", {}) or {}).get("reference") or {},

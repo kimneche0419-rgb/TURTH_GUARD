@@ -82,7 +82,7 @@ def handle_call_tool(request_id, name, arguments):
             
             result = truthhistory.detect_text(text)
             
-            # Format output — 다각도 판별 + 지정학 왜곡 불허 사유 포함
+            # Format output — 다각도 판별 + 지정학 왜곡 불허 사유(역사 영역 텍스트에만)
             report = {
                 "is_manipulated": result.is_manipulated,
                 "credibility_score": result.credibility_score,
@@ -91,7 +91,7 @@ def handle_call_tool(request_id, name, arguments):
                 "reasons": result.reasons,
                 "analysis_details": result.analysis_details,
                 "perspectives": ExplainEngine.build_perspectives(result, "text"),
-                "significance": SIGNIFICANCE
+                "significance": SIGNIFICANCE if ExplainEngine.should_include_significance(result, "text") else None,
             }
 
             return make_success_tool_response(request_id, report)
@@ -115,20 +115,21 @@ def handle_call_tool(request_id, name, arguments):
             else:
                 return make_error_response(request_id, -32602, f"unsupported media type: {ext}")
                 
+            media_type = {
+                "jpg": "image", "jpeg": "image", "png": "image", "webp": "image",
+                "mp4": "video", "avi": "video", "mov": "video", "mkv": "video",
+                "wav": "audio", "mp3": "audio", "m4a": "audio", "flac": "audio",
+            }.get(ext, "text")
             report = {
                 "target_file": os.path.basename(path),
-                "media_type": ext,
+                "media_type": media_type,
                 "is_manipulated": result.is_manipulated,
                 "credibility_score": result.credibility_score,
                 "risk_level": result.risk_level,
                 "ai_probability": result.ai_probability,
                 "reasons": result.reasons,
-                "perspectives": ExplainEngine.build_perspectives(result, {
-                    "jpg": "image", "jpeg": "image", "png": "image", "webp": "image",
-                    "mp4": "video", "avi": "video", "mov": "video", "mkv": "video",
-                    "wav": "audio", "mp3": "audio", "m4a": "audio", "flac": "audio",
-                }.get(ext, "text")),
-                "significance": SIGNIFICANCE
+                "perspectives": ExplainEngine.build_perspectives(result, media_type),
+                "significance": SIGNIFICANCE if ExplainEngine.should_include_significance(result, media_type) else None,
             }
             return make_success_tool_response(request_id, report)
             

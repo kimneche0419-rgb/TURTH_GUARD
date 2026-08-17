@@ -99,17 +99,30 @@
     );
   }
 
-  // 지정학적 역사 왜곡 불허 사유 — 리포트 공통 콘텐츠
+  // 지정학적 역사 왜곡 불허 사유 — 역사 영역 콘텐츠에만 포함(서버가 significance:null이면 미표시)
   function thSignificanceHtml(report) {
     var sig = report && report.significance;
     if (!sig || !sig.title) return "";
     var items = (sig.reasons || []).map(function (r) {
       return '<li><b>' + thEscapeHtml(r.tag) + "</b>: " + thEscapeHtml(r.detail) + "</li>";
     }).join("");
+    var map = sig.map;
+    var mapHtml = "";
+    if (map && map.svg) {
+      var links = (map.sources || []).map(function (s) {
+        return '<li><a class="th-ext-d-link" href="' + thEscapeHtml(s.url) + '" target="_blank" rel="noopener">' + thEscapeHtml(s.label) + "</a></li>";
+      }).join("");
+      mapHtml =
+        '<div class="th-ext-d-sec">🗺️ ' + thEscapeHtml(map.title || "관련 지도") + "</div>" +
+        '<div class="th-ext-map">' + map.svg + "</div>" + // 서버 제공 정적 SVG(자체 생성) — 안전
+        (map.note ? '<div class="th-ext-angle-detail">' + thEscapeHtml(map.note) + "</div>" : "") +
+        (links ? '<ul class="th-ext-d-list">' + links + "</ul>" : "");
+    }
     return (
       '<div class="th-ext-d-sec">📌 ' + thEscapeHtml(sig.title) + "</div>" +
       (sig.summary ? '<div class="th-ext-sig-summary">' + thEscapeHtml(sig.summary) + "</div>" : "") +
-      (items ? '<ul class="th-ext-d-list th-ext-sig-list">' + items + "</ul>" : "")
+      (items ? '<ul class="th-ext-d-list th-ext-sig-list">' + items + "</ul>" : "") +
+      mapHtml
     );
   }
 
@@ -178,6 +191,24 @@
 
   var TH_YT_PATTERN = /(?:youtube\.com\/(?:watch\?[^#]*v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/;
 
+  // 광고 이미지 판별 — 광고에는 검증 배지를 붙이지 않는다
+  var TH_AD_SIZES = { "728x90": 1, "468x60": 1, "970x90": 1, "970x250": 1, "320x50": 1, "320x100": 1, "300x250": 1, "336x280": 1, "250x250": 1, "200x200": 1, "160x600": 1, "300x600": 1, "120x600": 1, "300x50": 1, "180x150": 1 };
+  var TH_AD_URL_RE = /doubleclick|googlesyndication|googleadservices|adsystem|adnxs|adform|taboola|outbrain|criteo|adservice|\/ads?\/|\/banners?\/|\/advert/i;
+  function thLooksLikeAd(img) {
+    var w = img.naturalWidth || img.width || 0;
+    var h = img.naturalHeight || img.height || 0;
+    if (w && h && TH_AD_SIZES[w + "x" + h]) return true; // IAB 표준 광고 크기
+    var sig = [img.id, img.className, img.getAttribute("alt"), img.getAttribute("name"), img.src].join(" ");
+    if (/\b(ads?|advert|banner|sponsor|promo)\b/i.test(sig)) return true;
+    if (sig.indexOf("광고") >= 0) return true;
+    if (TH_AD_URL_RE.test(img.src || "")) return true;
+    try {
+      var a = img.closest("a[href]");
+      if (a && TH_AD_URL_RE.test(a.href)) return true;
+    } catch (_) {}
+    return false;
+  }
+
   // 단일 이미지 검증 및 배지 삽입
   function thScanImage(img) {
     img.dataset.thMediaScanned = "1";
@@ -196,11 +227,15 @@
     } catch (_) {}
   }
 
-  // 문서 전체 이미지 스캔
+  // 문서 전체 이미지 스캔 (광고 제외)
   function thScanImagesEverywhere() {
     document.querySelectorAll("img").forEach((img) => {
       if (!img.src || img.dataset.thMediaScanned) return;
       var w = img.naturalWidth || img.width || 0;
+      if (thLooksLikeAd(img)) {
+        img.dataset.thMediaScanned = "ad"; // 광고 — 배지 미부착
+        return;
+      }
       if (w >= 64) {
         thScanImage(img);
       } else if (w === 0) {
@@ -208,6 +243,7 @@
         img.addEventListener("load", () => {
           if (img.dataset.thMediaScanned !== "pending") return;
           img.dataset.thMediaScanned = "";
+          if (thLooksLikeAd(img)) { img.dataset.thMediaScanned = "ad"; return; }
           if ((img.naturalWidth || 0) >= 64) thScanImage(img);
         }, { once: true });
       }
