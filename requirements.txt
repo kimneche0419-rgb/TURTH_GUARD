@@ -1,8 +1,11 @@
-# Truth History SDK - Vercel 서버리스 백엔드 의존성 (텍스트 중심, 최소)
-# 서버리스 함수 225MB 한계 → opencv / numpy / pillow / torch / librosa 제외.
-# ✅ /api/v1/scan/text, /api/v1/scan/url 정상 동작 (확장 프로그램·대시보드 텍스트 검증)
-# ⚠️ 이미지/영상/오디오는 지연 임포트 실패 시 중립값 폴백 (전체 멀티미디어는 Render/Railway 권장)
+# Truth History SDK - Vercel 서버리스 백엔드 의존성
+# 정밀 이미지 분석(ELA/FFT) 지원: Pillow + numpy 경량 경로
+# - ELA: Pillow(ImageChops) + numpy
+# - FFT: cv2 우선, 미설치 시 Pillow 그레이스케일 폴백 → 서버리스에서도 정밀 분석 동작
+# - 안면 비대칭(페이스 스왑)·영상·오디오 정밀 분석은 로컬 CLI 권장 (무거운 모듈)
 fastapi>=0.100.0
 pydantic>=2.0.0
 requests>=2.31.0
 python-multipart>=0.0.6
+pillow>=10.0.0
+numpy>=1.26.0

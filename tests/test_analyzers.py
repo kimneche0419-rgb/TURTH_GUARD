@@ -58,13 +58,39 @@ class TestTruthHistoryAnalyzers(unittest.TestCase):
     def test_image_analyzer(self):
         analyzer = ImageAnalyzer()
         result = analyzer.analyze(self.image_path)
-        
+        self._assert_image_result(result)
+
+    def test_fft_runs_with_pillow_when_cv2_missing(self):
+        # 서버리스(Vercel) 시나리오 — cv2 없이 Pillow+numpy만으로 정밀 FFT 동작 검증
+        from unittest.mock import patch as _patch
+        from truthhistory.base import LazyModuleImporter as LMI
+
+        real_import = LMI.import_module
+
+        def _no_cv2(module_name, extra_group):
+            if module_name == "cv2":
+                raise ImportError("No module named 'cv2' (serverless)")
+            return real_import(module_name, extra_group)
+
+        analyzer = ImageAnalyzer()
+        with _patch.object(LMI, "import_module", staticmethod(_no_cv2)):
+            fft = analyzer.analyze_frequency_domain(self.image_path)
+        self.assertTrue(fft["module_available"])
+        self.assertEqual(fft["loader"], "pillow")
+        self.assertIsInstance(fft["ai_probability"], float)
+        self.assertGreaterEqual(fft["spike_count"], 0)
+
+        # 전체 분석도 중립 폴백이 아닌 정밀 점수로 판정해야 함
+        with _patch.object(LMI, "import_module", staticmethod(_no_cv2)):
+            result = analyzer.analyze(self.image_path)
+        self.assertNotIn("중립(50%) 결과 반환됨", " ".join(result.reasons))
+        self.assertNotEqual(result.credibility_score, 0.50)
+
+    def _assert_image_result(self, result):
         self.assertIsNotNone(result.credibility_score)
         self.assertIsInstance(result.is_manipulated, bool)
         self.assertIn("error_level_analysis", result.analysis_details)
         self.assertIn("frequency_analysis", result.analysis_details)
-        
-        # ELA 정상 파일이므로 변조 점수가 비교적 낮아야 함
         # 피드백 보장 — 정상 컨텐츠여도 판정 근거가 항상 제공되어야 함
         self.assertTrue(result.reasons)
 

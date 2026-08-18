@@ -134,38 +134,46 @@ class ImageAnalyzer(BaseAnalyzer):
     def analyze_frequency_domain(self, image_path: str) -> Dict[str, Any]:
         """
         2D Fast Fourier Transform을 활용해 주기적 노이즈(Grid) 탐지
+        그레이스케일 로드는 cv2 우선 — 미설치 환경(서버리스)에서는 Pillow로 폴백해
+        정밀 FFT가 항상 동작하도록 한다.
         """
         try:
-            cv2 = LazyModuleImporter.import_module("cv2", "image")
             np = LazyModuleImporter.import_module("numpy", "image")
-            
-            img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+            loader = "cv2"
+            try:
+                cv2 = LazyModuleImporter.import_module("cv2", "image")
+                img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+            except ImportError:
+                loader = "pillow"
+                PILImage = LazyModuleImporter.import_module("PIL.Image", "image")
+                with PILImage.open(image_path) as im:
+                    img = np.asarray(im.convert("L"))
             if img is None:
-                return {"ai_probability": 0.0, "spike_count": 0}
-                
+                return {"ai_probability": 0.0, "spike_count": 0, "module_available": True, "loader": loader}
+
             f_transform = np.fft.fft2(img)
             f_shift = np.fft.fftshift(f_transform)
             magnitude_spectrum = 20 * np.log(np.abs(f_shift) + 1)
-            
+
             # 중앙 저주파 마스킹
             h, w = img.shape
             cy, cx = h // 2, w // 2
             magnitude_spectrum[cy-10:cy+10, cx-10:cx+10] = 0
-            
+
             threshold = np.mean(magnitude_spectrum) + 3.0 * np.std(magnitude_spectrum)
             spikes = np.argwhere(magnitude_spectrum > threshold)
-            
+
             ai_prob = min(len(spikes) / 1500.0, 1.0)
-            
+
             return {
                 "ai_probability": round(ai_prob, 4),
                 "spike_count": len(spikes),
-                "module_available": True
+                "module_available": True,
+                "loader": loader
             }
         except (ImportError, Exception):
-            # 라이브러리 부재 시 확장자 패턴 기반 간이 탐지 폴백 — 분석 미수행 명시
+            # numpy/Pillow 마저 없는 환경 — 확장자 패턴 기반 간이 탐지 폴백
             ext = image_path.split(".")[-1].lower()
-            # webp의 경우 신생 이미지일 확률이 높으므로 가벼운 변조 가능성 부여
             ai_prob = 0.4 if ext == "webp" else 0.1
             return {
                 "ai_probability": ai_prob,

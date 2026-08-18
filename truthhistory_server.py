@@ -38,8 +38,8 @@ async def health_check():
     (크롬 확장 프로그램의 로컬-우선 자동 감지 지원)
     """
     try:
-        import PIL  # noqa: F401
-        import cv2  # noqa: F401
+        import PIL  # noqa: F401 — ELA/FFT 정밀 분석(Pillow+numpy 경로) 지원 여부
+        import numpy  # noqa: F401
         image_support = True
     except ImportError:
         image_support = False
