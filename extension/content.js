@@ -251,6 +251,41 @@
     return false;
   }
 
+
+  // 사이트 크롬 요소(뉴스 로고·마크·아이콘) 판별 — 콘텐츠가 아니므로 배지를 붙이지 않는다
+  function thLooksLikeSiteChrome(img) {
+    var sig = [img.id, img.className, img.getAttribute("alt"), img.getAttribute("title"), img.src].join(" ");
+    if (/\b(logo|brand|mark|icon|emblem|favicon|sprite)\b/i.test(sig)) return true;
+    if (/\/logos?\//i.test(img.src || "")) return true;
+    if ((img.src || "").startsWith("data:")) return true; // 인라인 스프라이트·아이콘
+    var w = img.naturalWidth || img.width || 0;
+    var h = img.naturalHeight || img.height || 0;
+    if (w && h && h <= 200 && w / h >= 3.5) return true; // 와이드 마스트헤드형
+    try {
+      if (img.closest("header, nav, footer, [class*='logo'], [class*='gnb'], [class*='header'], [class*='nav'], [id*='header'], [id*='gnb'], [id*='logo']")) return true;
+    } catch (_) {}
+    return false;
+  }
+
+  // 재렌더링으로 복제된 기존 배지 제거 — 같은 대상에 판정이 두 번 붙는 것을 방지
+  function thRemoveAdjacentBanners(el) {
+    try {
+      var sib = el.nextElementSibling;
+      while (sib && sib.classList && sib.classList.contains("th-ext-banner")) {
+        var nx = sib.nextElementSibling;
+        sib.remove();
+        sib = nx;
+      }
+      var prev = el.previousElementSibling;
+      while (prev && prev.classList && prev.classList.contains("th-ext-banner")) {
+        var pv = prev.previousElementSibling;
+        prev.remove();
+        prev = pv;
+      }
+      // 텍스트 컨테이너 경유 복제(자식 배지)도 제거
+      el.querySelectorAll(":scope > .th-ext-banner").forEach(function (b) { b.remove(); });
+    } catch (_) {}
+  }
   // 단일 이미지 검증 및 배지 삽입
   function thScanImage(img) {
     img.dataset.thMediaScanned = "1";
@@ -259,6 +294,7 @@
         if (chrome.runtime.lastError) return;
         if (resp && resp.ok && resp.report) {
           try {
+            thRemoveAdjacentBanners(img); // 재렌더링 복제 배지 제거(중복 판정 방지)
             var b = thBuildBanner(resp.report, { sourceUrl: img.src, kind: "image" });
             b.classList.add("th-ext-media");
             b.insertAdjacentHTML("afterbegin", "<span style='margin-right:6px'>🖼️ 이미지 검증</span>");
@@ -269,13 +305,13 @@
     } catch (_) {}
   }
 
-  // 문서 전체 이미지 스캔 (광고 제외)
+  // 문서 전체 이미지 스캔 (광고·사이트 크롬 제외)
   function thScanImagesEverywhere() {
     document.querySelectorAll("img").forEach((img) => {
       if (!img.src || img.dataset.thMediaScanned) return;
       var w = img.naturalWidth || img.width || 0;
-      if (thLooksLikeAd(img)) {
-        img.dataset.thMediaScanned = "ad"; // 광고 — 배지 미부착
+      if (thLooksLikeAd(img) || thLooksLikeSiteChrome(img)) {
+        img.dataset.thMediaScanned = "skip"; // 광고·로고/마크 — 배지 미부착
         return;
       }
       if (w >= 64) {
@@ -285,12 +321,13 @@
         img.addEventListener("load", () => {
           if (img.dataset.thMediaScanned !== "pending") return;
           img.dataset.thMediaScanned = "";
-          if (thLooksLikeAd(img)) { img.dataset.thMediaScanned = "ad"; return; }
+          if (thLooksLikeAd(img) || thLooksLikeSiteChrome(img)) { img.dataset.thMediaScanned = "skip"; return; }
           if ((img.naturalWidth || 0) >= 64) thScanImage(img);
         }, { once: true });
       }
     });
   }
+
 
   // 문서 전체 YouTube 링크·임베드 자동 검증
   function thScanYoutubeEverywhere() {
@@ -313,6 +350,7 @@
           if (chrome.runtime.lastError) return;
           if (resp && resp.ok && resp.report) {
             try {
+              thRemoveAdjacentBanners(el);
               var b = thBuildBanner(resp.report);
               b.classList.add("th-ext-media");
               b.insertAdjacentHTML("afterbegin", "<span style='margin-right:6px'>🎬 YouTube 검증</span>");
@@ -332,6 +370,7 @@
     var resp = await thScanText(text);
     if (resp && resp.ok && resp.report) {
       try {
+        thRemoveAdjacentBanners(node); // 재렌더링 복제 배지 제거(중복 판정 방지)
         node.prepend(thBuildBanner(resp.report));
       } catch (_) { /* shadow DOM 등 삽입 불가 시 무시 */ }
       try {
