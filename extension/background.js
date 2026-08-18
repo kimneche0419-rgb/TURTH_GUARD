@@ -313,5 +313,35 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     })();
     return true;
   }
+  if (msg.type === "TH_DOWNLOAD_MEDIA") {
+    // 정밀 분석용 원본 다운로드 — 서버리스 백엔드가 미분석(중립) 판정 시 로컬 CLI로 넘기는 경로
+    (async () => {
+      try {
+        const res = await fetch(msg.url);
+        if (!res.ok) throw new Error(`이미지 가져오기 실패 (HTTP ${res.status})`);
+        const blob = await res.blob();
+        // MV3 서비스 워커에는 URL.createObjectURL이 없음 → FileReader data URL로 전달
+        const dataUrl = await new Promise((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(fr.result);
+          fr.onerror = () => reject(new Error("원본 인코딩 실패"));
+          fr.readAsDataURL(blob);
+        });
+        let name = decodeURIComponent((msg.url.split("?")[0].split("#")[0].split("/").pop() || "")).replace(/[^\w.\-가-힣]/g, "_");
+        if (!/\.[A-Za-z0-9]{2,5}$/.test(name)) name += ".jpg";
+        let id;
+        try {
+          id = await chrome.downloads.download({ url: dataUrl, filename: name, saveAs: true });
+        } catch (_) {
+          // 저장 대화상자를 지원하지 않는 환경(헤드리스 등) — 기본 위치로 자동 저장
+          id = await chrome.downloads.download({ url: dataUrl, filename: name });
+        }
+        sendResponse({ ok: true, id });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e && e.message ? e.message : e) });
+      }
+    })();
+    return true;
+  }
   return false;
 });

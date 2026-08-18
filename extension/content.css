@@ -86,4 +86,11 @@
 .th-ext-sig-summary { font-size: 12px; color: #333; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; }
 .th-ext-map { margin-top: 6px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px; background: #ffffff; }
 .th-ext-map svg { display: block; width: 100%; height: auto; }
+.th-ext-dl {
+  margin-top: 6px; padding: 5px 10px; border: 1px solid #0f172a; border-radius: 7px;
+  background: #ffffff; color: #000000; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.th-ext-dl:hover { background: #f1f5f9; }
+.th-ext-dl:disabled { cursor: default; opacity: 0.7; }
+#th-ext-detail .th-ext-dl { display: block; margin-top: 8px; }
 .th-ext-sig-list li { margin: 4px 0; }

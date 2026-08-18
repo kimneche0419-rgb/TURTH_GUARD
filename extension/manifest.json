@@ -3,7 +3,7 @@
   "name": "Truth History: LLM 역사 할루시네이션 가드",
   "version": "0.1.0",
   "description": "LLM(ChatGPT/Claude/Gemini 등) 출력의 한국사 왜곡·할루시네이션을 Truth History SDK 고증 검증 엔진으로 실시간 교차 검증하여 경고합니다.",
-  "permissions": ["activeTab", "storage", "contextMenus", "scripting"],
+  "permissions": ["activeTab", "storage", "contextMenus", "scripting", "downloads"],
   "host_permissions": [
     "http://*/*",
     "https://*/*"

@@ -126,7 +126,7 @@
     );
   }
 
-  function thBuildBanner(report) {
+  function thBuildBanner(report, opts) {
     var d = (report && report.decision) || {};
     var cred = Math.round(((d.credibility_score == null ? 1 : d.credibility_score)) * 100);
     var level = d.risk_level || "LOW";
@@ -137,6 +137,9 @@
     var reasonsHtml = reasons.length
       ? `<ul>${reasons.map((r) => `<li>${thEscapeHtml(r)}</li>`).join("")}</ul>`
       : "<p class=\"th-ext-none\">특이 역사 왜곡 징후 없음</p>";
+    var dlHtml = (opts && opts.sourceUrl)
+      ? `<button class="th-ext-dl" title="원본 이미지를 저장해 로컬 CLI(th scan)로 정밀 분석">💾 원본 다운로드</button>`
+      : "";
     wrap.innerHTML =
       `<div class="th-ext-head">
         <span class="th-ext-logo">🛡️ Truth History</span>
@@ -146,14 +149,31 @@
         </span>
       </div>
       ${thGauge(d.credibility_score == null ? 1 : d.credibility_score, thRiskColor(level))}
-      <div class="th-ext-reasons">${reasonsHtml}</div>`;
+      <div class="th-ext-reasons">${reasonsHtml}</div>
+      ${dlHtml}`;
+    var dl = wrap.querySelector(".th-ext-dl");
+    if (dl) {
+      dl.onclick = (ev) => {
+        ev.stopPropagation();
+        chrome.runtime.sendMessage({ type: "TH_DOWNLOAD_MEDIA", url: opts.sourceUrl }, (resp) => {
+          if (chrome.runtime.lastError || !resp || !resp.ok) {
+            dl.disabled = false;
+            dl.textContent = "💾 다운로드 실패(새 탭에서 저장)";
+            dl.title = "오류: " + ((resp && resp.error) || chrome.runtime.lastError && chrome.runtime.lastError.message || "알 수 없음");
+            dl.onclick = (ev2) => { ev2.stopPropagation(); window.open(opts.sourceUrl, "_blank", "noopener"); };
+            return;
+          }
+          dl.textContent = "💾 다운로드 시작됨";
+        });
+      };
+    }
     wrap.style.cursor = "pointer";
     wrap.title = "클릭 시 상세 리포트·근거 자료를 표시합니다";
-    wrap.addEventListener("click", () => thShowDetail(report));
+    wrap.addEventListener("click", () => thShowDetail(report, opts));
     return wrap;
   }
 
-  function thBuildDetailPanel(report) {
+  function thBuildDetailPanel(report, opts) {
     var d = (report && report.decision) || {};
     var m = (report && report.metrics) || {};
     var cred = Math.round(((d.credibility_score == null ? 1 : d.credibility_score)) * 100);
@@ -169,6 +189,11 @@
     var evHtml = evidence.length
       ? `<div class="th-ext-d-sec">🔗 근거 자료 웹사이트</div>
          <ul class="th-ext-d-list">${evidence.map((e) => `<li>${e.url ? `<a class="th-ext-d-link" href="${thEscapeHtml(e.url)}" target="_blank" rel="noopener">${thEscapeHtml(e.title || e.source)}</a>` : `<span>${thEscapeHtml(e.title || e.source)}</span>`} <span class="th-ext-d-src">(${thEscapeHtml(e.source || "")})</span></li>`).join("")}</ul>` : "";
+    var dlRow = (opts && opts.sourceUrl)
+      ? `<div class="th-ext-d-sec">💾 정밀 분석용 원본</div>
+         <div class="th-ext-d-row">클라우드 백엔드는 정밀 ELA/FFT가 불가한 환경일 수 있습니다. 원본을 저장해 로컬 CLI(<code>th scan 이미지경로</code>)로 검증하세요.
+           <button class="th-ext-dl" data-th-src="${thEscapeHtml(opts.sourceUrl)}">💾 원본 다운로드</button></div>`
+      : "";
     panel.innerHTML =
       `<div class="th-ext-d-head"><span>🛡️ Truth History 상세 리포트</span><button class="th-ext-d-x">✕</button></div>
        <div class="th-ext-d-row"><b>신뢰도</b> ${cred}% · ${thEscapeHtml(d.risk_level || "LOW")} — <span class="th-ext-tag ${thVerdict(d).cls}">${thEscapeHtml(thVerdict(d).text)}</span></div>
@@ -178,15 +203,32 @@
        <ul class="th-ext-d-list">${reasons.length ? reasons.map((r) => `<li>${thEscapeHtml(r)}</li>`).join("") : "<li>특이 징후 없음</li>"}</ul>
        ${thPerspectivesHtml(report)}
        ${thSignificanceHtml(report)}
+       ${dlRow}
        ${refHtml}${evHtml}`;
+    var dlBtn = panel.querySelector(".th-ext-dl");
+    if (dlBtn) {
+      dlBtn.onclick = () => {
+        dlBtn.disabled = true;
+        dlBtn.textContent = "다운로드 중…";
+        chrome.runtime.sendMessage({ type: "TH_DOWNLOAD_MEDIA", url: opts.sourceUrl }, (resp) => {
+          if (chrome.runtime.lastError || !resp || !resp.ok) {
+            dlBtn.disabled = false;
+            dlBtn.textContent = "💾 다운로드 실패(새 탭에서 저장)";
+            dlBtn.onclick = () => window.open(opts.sourceUrl, "_blank", "noopener");
+            return;
+          }
+          dlBtn.textContent = "💾 다운로드 시작됨";
+        });
+      };
+    }
     panel.querySelector(".th-ext-d-x").onclick = () => panel.remove();
     return panel;
   }
 
-  function thShowDetail(report) {
+  function thShowDetail(report, opts) {
     var old = document.getElementById("th-ext-detail");
     if (old) old.remove();
-    document.body.appendChild(thBuildDetailPanel(report));
+    document.body.appendChild(thBuildDetailPanel(report, opts));
   }
 
   var TH_YT_PATTERN = /(?:youtube\.com\/(?:watch\?[^#]*v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/;
@@ -217,7 +259,7 @@
         if (chrome.runtime.lastError) return;
         if (resp && resp.ok && resp.report) {
           try {
-            var b = thBuildBanner(resp.report);
+            var b = thBuildBanner(resp.report, { sourceUrl: img.src, kind: "image" });
             b.classList.add("th-ext-media");
             b.insertAdjacentHTML("afterbegin", "<span style='margin-right:6px'>🖼️ 이미지 검증</span>");
             img.insertAdjacentElement("afterend", b);
