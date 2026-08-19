@@ -230,10 +230,15 @@ class ExplainEngine:
                     "안면 비대칭(페이스 스왑)", "Haar Cascade 안면 랜드마크 좌우 대칭 편차 분석",
                     1.0 - face.get("asymmetry_score", 0.0),
                     f"검출 안면 {face.get('detected_faces')}개 · 비대칭 점수 {_f(face.get('asymmetry_score'))}"))
+            elif not face.get("module_available", True):
+                # cv2 미설치 환경(서버리스 등) — '얼굴 없음'이 아닌 '분석 불가'로 표시
+                perspectives.append(_perspective(
+                    "안면 비대칭(페이스 스왑)", "Haar Cascade 안면 랜드마크 좌우 대칭 편차 분석",
+                    None, "안면 분석 모듈(OpenCV) 미설치 — 판정 보류(로컬 CLI `th scan`으로 정밀 분석)"))
             else:
                 perspectives.append(_perspective(
                     "안면 비대칭(페이스 스왑)", "Haar Cascade 안면 랜드마크 좌우 대칭 편차 분석",
-                    None, "검출 안면 없음 — 인물 사진 아님(판정 대상 아님)"))
+                    None, "검출 안면 없음 — 정면 얼굴이 아니거나 너무 작음(판정 대상 아님)"))
 
         elif media_type in ("video", "audio"):
             if media_type == "video":

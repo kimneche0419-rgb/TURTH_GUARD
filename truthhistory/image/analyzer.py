@@ -184,13 +184,21 @@ class ImageAnalyzer(BaseAnalyzer):
     def detect_deepfake_face(self, image_path: str) -> Dict[str, Any]:
         """
         OpenCV Haar Cascade 기반 안면 좌우 대칭 편차 분석으로 페이스 스왑(딥페이크) 의심 점수 산출.
-        얼굴 미검출 또는 의존성 부재 시 중립값을 반환한다.
+        의존성 부재(module_available=False)와 얼굴 미검출(detected_faces=0)을 구분해 반환한다.
         """
         try:
             cv2 = LazyModuleImporter.import_module("cv2", "image")
             img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
             if img is None:
-                return {"is_deepfake_suspect": False, "asymmetry_score": 0.0, "detected_faces": 0}
-            return face_asymmetry_score(img)
-        except (ImportError, Exception):
-            return {"is_deepfake_suspect": False, "asymmetry_score": 0.0, "detected_faces": 0}
+                return {"is_deepfake_suspect": False, "asymmetry_score": 0.0,
+                        "detected_faces": 0, "module_available": True}
+            result = face_asymmetry_score(img)
+            result["module_available"] = True
+            return result
+        except ImportError:
+            # cv2 미설치(서버리스 등) — '얼굴 없음'이 아닌 '분석 불가'로 명확히 구분
+            return {"is_deepfake_suspect": False, "asymmetry_score": 0.0,
+                    "detected_faces": 0, "module_available": False}
+        except Exception:
+            return {"is_deepfake_suspect": False, "asymmetry_score": 0.0,
+                    "detected_faces": 0, "module_available": True}

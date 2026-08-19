@@ -199,6 +199,33 @@ class TestSignificance(unittest.TestCase):
         report = ExplainEngine.format_explanations("(img)", "image", result, [])
         self.assertIsNone(report["significance"])
 
+    def test_face_angle_distinguishes_module_missing_from_no_face(self):
+        # cv2 미설치 환경의 안면 각도는 '얼굴 없음'이 아닌 '분석 불가'로 표시해야 한다
+        result = type("R", (), {})()
+        result.analysis_details = {
+            "error_level_analysis": {"module_available": True, "manipulation_score": 0.0, "mean_difference": 0.2},
+            "frequency_analysis": {"ai_probability": 0.1, "spike_count": 5, "module_available": True},
+            "deepfake_analysis": {"detected_faces": 0, "asymmetry_score": 0.0, "module_available": False},
+        }
+        perspectives = ExplainEngine.build_perspectives(result, "image")
+        face = next(a for a in perspectives["angles"] if a["name"].startswith("안면 비대칭"))
+        self.assertEqual(face["verdict"], "미판정")
+        self.assertIn("미설치", face["detail"])
+        self.assertNotIn("인물 사진 아님", face["detail"])
+
+        # 모듈은 있으나 얼굴 미검출 — '정면 얼굴 아님' 문구
+        result.analysis_details["deepfake_analysis"] = {"detected_faces": 0, "asymmetry_score": 0.0, "module_available": True}
+        perspectives = ExplainEngine.build_perspectives(result, "image")
+        face = next(a for a in perspectives["angles"] if a["name"].startswith("안면 비대칭"))
+        self.assertIn("검출 안면 없음", face["detail"])
+
+        # 얼굴 검출 성공 — 점수로 판별 참여
+        result.analysis_details["deepfake_analysis"] = {"detected_faces": 1, "asymmetry_score": 0.2, "module_available": True}
+        perspectives = ExplainEngine.build_perspectives(result, "image")
+        face = next(a for a in perspectives["angles"] if a["name"].startswith("안면 비대칭"))
+        self.assertEqual(face["score"], 0.8)
+        self.assertEqual(face["verdict"], "정상")
+
     def test_significance_covers_multiple_disputes_with_map(self):
         # 쟁점 다각화 — 독도 편중 금지(간도·사할린·동북공정·강제동원·6·25 포함) + 지도 제시
         joined = " ".join(r["tag"] + r["detail"] for r in SIGNIFICANCE["reasons"])
