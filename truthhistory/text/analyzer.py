@@ -7,6 +7,24 @@ import requests
 
 from truthhistory.base import BaseAnalyzer, AnalysisResult, LazyModuleImporter
 
+# 영토·지정학 쟁점 주제 클러스터 — 본문 키워드 → 지도 첨부 및 주제별 지도 선택에 사용.
+# (식민·전쟁 쟁점은 지도 대상 아니므로 제외하지 않고 주제만 기록해 사유 섹션 근거로 씀)
+_DISPUTE_CLUSTERS = {
+    "독도·동해 표기": ["독도", "동해", "다케시마", "sea of japan", "리앙쿠르"],
+    "간도·백두산 국경": ["간도", "백두산", "장백산", "두만강", "압록강", "북간도"],
+    "사할린 강제이주": ["사할린", "슈미섬"],
+    "동북공정(고구려·발해 귀속)": ["동북공정", "고구려", "발해", "요동", "한사군"],
+    "일제 강제동원·위안부": ["강제동원", "징용", "위안부", "일제강점", "강제징집"],
+    "6·25 발발 주체": ["6·25", "육이오", "한국전쟁", "북침", "남침", "6.25"],
+}
+
+
+def detect_dispute_topics(text: str) -> List[str]:
+    """본문에서 언급된 영토·지정학 쟁점 주제 목록을 반환 (빈 리스트 = 쟁점 미언급)."""
+    t = (text or "").lower()
+    return [topic for topic, kws in _DISPUTE_CLUSTERS.items()
+            if any(kw.lower() in t for kw in kws)]
+
 class TextAnalyzer(BaseAnalyzer):
     """
     텍스트 데이터의 신뢰성, 출처 및 AI 생성 가능성을 종합 분석하는 분석기 클래스
@@ -57,6 +75,9 @@ class TextAnalyzer(BaseAnalyzer):
             or bool(_ana.get("anachronism"))
             or is_history_related(data)
         )
+
+        # 영토·지정학 쟁점 주제 검출 — 지도 첨부는 이 주제가 있을 때만, 주제별로 다른 지도
+        dispute_topics = detect_dispute_topics(data)
 
         # 가중합 스코어링 공식 적용
         credibility_score = (
@@ -147,8 +168,9 @@ class TextAnalyzer(BaseAnalyzer):
                 "source_credibility": source_results,
                 "ai_generation": ai_results,
                 "llm_judge": llm_judge,
-                # 역사 영역 관련성 — 지정학 왜곡 불허 사유 섹션은 역사 콘텐츠에만 표시
                 "history_relevant": history_relevant,
+                # 영토·지정학 쟁점 주제 — 리포트 지도 선택·첨부 여부 판정에 사용
+                "dispute_topics": dispute_topics,
             },
             reasons=reasons
         )

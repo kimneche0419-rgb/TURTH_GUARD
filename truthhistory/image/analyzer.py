@@ -4,6 +4,7 @@ import tempfile
 from typing import Any, Dict, List
 
 from truthhistory.base import BaseAnalyzer, AnalysisResult, LazyModuleImporter
+from truthhistory.image.classifier import classify_history_image
 from truthhistory.utils import face_asymmetry_score
 
 class ImageAnalyzer(BaseAnalyzer):
@@ -37,7 +38,11 @@ class ImageAnalyzer(BaseAnalyzer):
 
         # 3. 딥페이크 안면 특징점 분석
         deepfake_results = self.detect_deepfake_face(data)
-        deepfake_score = deepfake_results.get("asymmetry_score", 0.0)
+        # 유효 딥페이크 점수 — 스왑형 비대칭 또는 완전 합성형 과대칭(synthetic_symmetry) 중 최대
+        deepfake_score = max(
+            deepfake_results.get("asymmetry_score", 0.0),
+            0.85 if deepfake_results.get("synthetic_symmetry") else 0.0,
+        )
 
         # 가중합 신뢰도 계산
         credibility_score = 1.0 - (
@@ -53,7 +58,12 @@ class ImageAnalyzer(BaseAnalyzer):
             reasons.append("이미지 내 특정 구역에서 비정상적인 ELA 압축 오차 감지 (합성 의심)")
         if ai_prob > 0.8:
             reasons.append(f"주파수 노이즈 분석 결과 GAN/Diffusion 격자 아티팩트 검출 (확률: {ai_prob * 100:.1f}%)")
-        if deepfake_results.get("is_deepfake_suspect", False):
+        if deepfake_results.get("synthetic_symmetry", False):
+            reasons.append(
+                f"안면 좌우 대칭 편차(전체 {deepfake_results.get('raw_asymmetry', 0):.3f} · "
+                f"내부 {deepfake_results.get('inner_asymmetry', 0):.3f})가 실존 인물 사진 통계"
+                "(전체 ≥ 0.107)보다 현저히 낮음 — AI 완전 합성 얼굴 의심")
+        if deepfake_results.get("is_deepfake_suspect", False) and not deepfake_results.get("synthetic_symmetry", False):
             reasons.append("안면 랜드마크 매칭 결과 대칭도 및 그림자 왜곡 감지 (딥페이크 의심)")
 
         # 피드백 보장: 의존성 부재 경고 또는 정상 판정 근거를 항상 제공
@@ -78,7 +88,9 @@ class ImageAnalyzer(BaseAnalyzer):
             analysis_details={
                 "error_level_analysis": ela_results,
                 "frequency_analysis": fft_results,
-                "deepfake_analysis": deepfake_results
+                "deepfake_analysis": deepfake_results,
+                # 역사 이미지 분류(확장 배지 부착 여부 신호) — 파일명·픽셀 휴리스틱
+                "history_relevance": classify_history_image(data),
             },
             reasons=reasons
         )
@@ -183,12 +195,20 @@ class ImageAnalyzer(BaseAnalyzer):
 
     def detect_deepfake_face(self, image_path: str) -> Dict[str, Any]:
         """
-        OpenCV Haar Cascade 기반 안면 좌우 대칭 편차 분석으로 페이스 스왑(딥페이크) 의심 점수 산출.
+        Haar Cascade 기반 안면 좌우 대칭 편차 분석으로 페이스 스왑(딥페이크) 의심 점수 산출.
+        그레이스케일 로드는 cv2 우선·Pillow 폴백 — 안면 검출 자체는 자체 numpy Haar
+        검출기(`truthhistory/utils/haar.py`)로 cv2 없는 서버리스에서도 정상 동작한다.
         의존성 부재(module_available=False)와 얼굴 미검출(detected_faces=0)을 구분해 반환한다.
         """
         try:
-            cv2 = LazyModuleImporter.import_module("cv2", "image")
-            img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+            np = LazyModuleImporter.import_module("numpy", "image")
+            try:
+                cv2 = LazyModuleImporter.import_module("cv2", "image")
+                img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+            except ImportError:
+                PILImage = LazyModuleImporter.import_module("PIL.Image", "image")
+                with PILImage.open(image_path) as im:
+                    img = np.asarray(im.convert("L"))
             if img is None:
                 return {"is_deepfake_suspect": False, "asymmetry_score": 0.0,
                         "detected_faces": 0, "module_available": True}
@@ -196,7 +216,7 @@ class ImageAnalyzer(BaseAnalyzer):
             result["module_available"] = True
             return result
         except ImportError:
-            # cv2 미설치(서버리스 등) — '얼굴 없음'이 아닌 '분석 불가'로 명확히 구분
+            # numpy/Pillow 마저 없는 환경 — '얼굴 없음'이 아닌 '분석 불가'로 명확히 구분
             return {"is_deepfake_suspect": False, "asymmetry_score": 0.0,
                     "detected_faces": 0, "module_available": False}
         except Exception:

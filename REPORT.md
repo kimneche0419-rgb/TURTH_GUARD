@@ -74,6 +74,8 @@ graph TD
 ### 5.1 백엔드 SDK (`truthhistory/` 패키지)
 - 4대 분석기(Text/Image/Video/Audio) 구현, 공통 `BaseAnalyzer`/`AnalysisResult`(Pydantic) 규격.
 - **stub 구체화**: 이미지·비디오 딥페이크 탐지를 상수 반환 stub에서 **OpenCV Haar Cascade 기반 안면 좌우 대칭 실제 구현**으로 교체(`truthhistory/utils/face.py` 공유 헬퍼, 얼굴 미검출 시 중립 폴백).
+- **역사 이미지 콘텐츠 분류기**(`truthhistory/image/classifier.py`): 파일명 역사 키워드 + HSV 픽셀 휴리스틱(세피아/유물 톤·흑백 우세·종이 질감)으로 텍스트 신호 없는 이미지의 역사 관련성 판별 → 리포트 `history_relevance` 필드로 확장 배지 부착 여부 결정. PIL 전용이라 서버리스(Vercel)에서 동작.
+- **양방향 안면 대칭 판정**(2026-08 보강): 기존 '비대칭→스왑 의심' 단방향에서 **과대칭→AI 완전 합성 의심**을 추가. 실존 인물 사진 8종 실측 캘리브레이션(전체 박스 편차 0.107~0.387) 기준으로 GAN/Diffusion 합성 얼굴(0.02~0.05)을 실측 최소값 마진으로 분리 — 완전 합성 얼굴 탐지 정확화.
 - 가중합 신뢰도 스코어링 + 위험도(LOW/MEDIUM/HIGH/CRITICAL) 자동 분류.
 - LazyModuleImporter로 의존성 누락 시 사용자에게 설치 안내.
 
@@ -92,6 +94,8 @@ graph TD
 
 ### 5.5 크롬 확장 프로그램 (`extension/`, Manifest V3)
 - ChatGPT/Claude/Gemini 어시스턴트 답변을 `MutationObserver`로 관찰 → Truth History 엔진으로 실시간 교차 검증 → **경고 배지** 인라인 삽입.
+- **역사 이미지 전용 배지 필터**: 문서 내 모든 이미지에 배지를 붙이던 방식을 개선 — ① 클라이언트 키워드 필터(alt/파일명/figure 캡션의 한국사 인명·왕조·유물 용어) ② 역사 페이지 컨텍스트 폴백(제목/URL에 역사 키워드면 서버 분류기에 위임) ③ 서버 `history_relevance` 판정 게이트. 광고(IAB 표준 사이즈)·사이트 로고/아이콘 제외와 함께 배지는 역사 이미지에만 부착.
+- **쟁점 주제별 지도 첨부**: AI 채팅 리포트의 지정학 섹션이 '항상 같은 지도'를 임의로 붙이던 문제 해결 — 본문에서 영토·지정학 쟁점 주제(독도·동해/간도·백두산/사할린/동북공정/강제동원·위안부/6·25)를 검출해, 영토 쟁점 언급 시에만 해당 위치를 하이라이트한 주제별 지도(SVG)를 첨부하고 미언급 시 지도 생략.
 - 우클릭 컨텍스트 메뉴로 어떤 텍스트든 즉시 검사, 팝업 설정(API 주소·Key·자동스캔).
 - **배포된 백엔드 연동 시 로컬 서버 불필요**.
 
@@ -106,9 +110,10 @@ graph TD
 
 | 항목 | 결과 |
 | :--- | :--- |
-| 단위 테스트 | **16건 전체 통과** (분석기 4종 + CLI 10종 + `/scan/text` 서버 2종) |
+| 단위 테스트 | **89건 전체 통과** (분석기·설명엔진·CLI·서버·MCP·지식베이스·증거수집) |
 | 프론트엔드 타입체크 | `tsc --noEmit` **0건** |
 | 확장 프로그램 정적 검증 | manifest JSON + JS(background/content/popup) 문법 통과 |
+| 역사 이미지 분류기 검증 | 예시 셋 9케이스 전부 정답(세피아·파일명 키워드·비역사·광고) + AI 합성 얼굴/실존 인물 8종 분리 확인 |
 | 클라우드 배포 | 대시보드 `GET /` 200, 텍스트 API `POST /api/v1/scan/text` 200 + XAI JSON 반환 확인 |
 | 버전관리 | PR #1(`platy`→`main`)로 전부 커밋·푸시 |
 
@@ -143,4 +148,4 @@ graph TD
 - **코드**: https://github.com/kimneche0419-rgb/TURTH_GUARD/pull/1
 - **라이브**: https://platy-rho.vercel.app
 - **문서**: `README.md`, `PROJECT_PIPELINE.md`, `DEPLOY.md`, `docs/`(설계 명세 7종), `extension/README.md`
-- **테스트**: `tests/` (16건)
+- **테스트**: `tests/` (89건)

@@ -7,7 +7,7 @@ import traceback
 # Ensure we can import truthhistory
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 import truthhistory
-from truthhistory.explain.engine import ExplainEngine, SIGNIFICANCE
+from truthhistory.explain.engine import ExplainEngine, SIGNIFICANCE, _significance_for
 from truthhistory.utils import load_env
 
 load_env()  # 프로젝트 루트 .env → OS 환경 변수 (기존 환경 변수 우선)
@@ -91,7 +91,8 @@ def handle_call_tool(request_id, name, arguments):
                 "reasons": result.reasons,
                 "analysis_details": result.analysis_details,
                 "perspectives": ExplainEngine.build_perspectives(result, "text"),
-                "significance": SIGNIFICANCE if ExplainEngine.should_include_significance(result, "text") else None,
+                "significance": (_significance_for(result)
+                                 if ExplainEngine.should_include_significance(result, "text") else None),
             }
 
             return make_success_tool_response(request_id, report)

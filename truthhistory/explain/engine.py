@@ -118,6 +118,71 @@ def _perspective(name: str, basis: str, score: Optional[float], detail: str) -> 
 def _f(value: Optional[float]) -> str:
     return "—" if value is None else f"{value:.2f}"
 
+# 쟁점 주제별 지도 선택 — '아무 때나 항상 같은 지도'가 아니라
+# ① 영토 쟁점 언급 시에만 첨부 ② 언급된 쟁점 위치를 하이라이트한 주제별 지도.
+_MAP_FOCUS = {
+    "독도·동해 표기": {"markers": [("독도", 258, 170)], "title": "독도·동해 쟁점 지도"},
+    "간도·백두산 국경": {"markers": [("간도", 213, 70), ("백두산·국경", 190, 102)], "title": "간도·백두산 국경 쟁점 지도"},
+    "사할린 강제이주": {"markers": [("사할린", 312, 42)], "title": "사할린 강제이주 쟁점 지도"},
+    "동북공정(고구려·발해 귀속)": {"markers": [("백두산·국경", 190, 102)], "title": "동북공정·고구려발해 귀속 쟁점 지도"},
+}
+_BASE_MAP_MARKERS = [("백두산·국경", 190, 102), ("간도", 213, 70), ("독도", 258, 170), ("사할린", 312, 42)]
+
+
+def _territory_svg(focus: Optional[List[tuple]]) -> str:
+    """기본 개념도 SVG — focus에 지정된 쟁점 마커만 강조 링으로 하이라이트."""
+    markers = ""
+    for name, cx, cy in _BASE_MAP_MARKERS:
+        markers += f'<circle cx="{cx}" cy="{cy}" r="4" fill="#b91c1c"/>'
+        label_x = cx - 12 if cx > 240 else cx - 40
+        label_y = cy - 12 if cy > 100 else cy - 12
+        markers += f'<text x="{label_x}" y="{label_y}" font-size="10" fill="#7f1d1d">{name}</text>'
+    for name, cx, cy in (focus or []):
+        markers += (f'<circle cx="{cx}" cy="{cy}" r="9" fill="none" stroke="#dc2626" '
+                    f'stroke-width="2.5"><animate attributeName="r" values="7;11;7" dur="2s" '
+                    f'repeatCount="indefinite"/></circle>')
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 260" '
+        'style="max-width:100%;height:auto;font-family:sans-serif">'
+        '<rect width="360" height="260" fill="#dceaf5"/>'
+        '<path d="M0 0h360v56c-26 4-46 16-64 32l-14 24c-30 14-58 24-90 28L104 92C68 84 30 66 0 40Z" '
+        'fill="#efe8d5" stroke="#b8a878" stroke-width="1"/>'
+        '<path d="M306 10c10 20 14 42 11 64l-9 1c2-23-1-44-10-61Z" fill="#efe8d5" stroke="#b8a878" stroke-width="1"/>'
+        '<path d="M318 130c10 16 15 36 13 56s-8 36-15 48c3-18-1-36-9-52s-11-32-5-46Z" '
+        'fill="#efe8d5" stroke="#b8a878" stroke-width="1"/>'
+        '<path d="M186 96c11 12 13 30 9 49-4 20-10 38-19 56-6 12-14 25-22 23-8-2-8-15-6-27 4-20 0-37-4-54-4-16-2-32 6-43 12-14 26-15 36-4Z" '
+        'fill="#f7f2e3" stroke="#8d7f57" stroke-width="1.2"/>'
+        '<path d="M177 108c6-8 17-13 28-10" fill="none" stroke="#7c6f4d" stroke-width="1.4" stroke-dasharray="4 3"/>'
+        '<text x="96" y="178" font-size="11" fill="#44688a">서해(황해)</text>'
+        '<text x="224" y="152" font-size="11" fill="#44688a">동해</text>'
+        '<text x="168" y="238" font-size="11" fill="#44688a">남해</text>'
+        + markers +
+        '<text x="318" y="200" font-size="10" fill="#6b7280">일본</text>'
+        '<text x="30" y="30" font-size="10" fill="#6b7280">만주·중국</text>'
+        '<text x="12" y="252" font-size="9" fill="#64748b">개념도 — 실제 국경·영역과 다름</text>'
+        '</svg>'
+    )
+
+
+def _significance_for(result: AnalysisResult) -> Optional[Dict[str, Any]]:
+    """SIGNIFICANCE 사본 + 쟁점 주제에 맞는 지도. 영토 쟁점 미언급 시 지도 미첨부."""
+    import copy
+    sig = copy.deepcopy(SIGNIFICANCE)
+    topics = (result.analysis_details or {}).get("dispute_topics") or []
+    territorial = [t for t in topics if t in _MAP_FOCUS]
+    if not territorial:
+        sig["map"] = None  # 식민·전쟁 쟁점만 언급됐거나 쟁점 없음 — 지도 없음
+        return sig
+    focus_meta = _MAP_FOCUS[territorial[0]]
+    focus = focus_meta["markers"] if len(territorial) == 1 else [m for t in territorial for m in _MAP_FOCUS[t]["markers"]]
+    sig["map"] = {
+        "title": focus_meta["title"] if len(territorial) == 1 else "역사·영토 쟁점 지도",
+        "note": SIGNIFICANCE["map"]["note"] + f" 하이라이트: {', '.join(territorial)}.",
+        "svg": _territory_svg(focus),
+        "sources": SIGNIFICANCE["map"]["sources"],
+    }
+    return sig
+
 
 class ExplainEngine:
     """
@@ -226,10 +291,17 @@ class ExplainEngine:
                 else f"주파수 스파이크 {fft.get('spike_count', 0)}개 · AI 생성 확률 {_f(fft.get('ai_probability'))}"))
 
             if face.get("detected_faces", 0) > 0:
-                perspectives.append(_perspective(
-                    "안면 비대칭(페이스 스왑)", "Haar Cascade 안면 랜드마크 좌우 대칭 편차 분석",
-                    1.0 - face.get("asymmetry_score", 0.0),
-                    f"검출 안면 {face.get('detected_faces')}개 · 비대칭 점수 {_f(face.get('asymmetry_score'))}"))
+                if face.get("synthetic_symmetry"):
+                    perspectives.append(_perspective(
+                        "안면 비대칭(페이스 스왑)", "Haar Cascade 안면 랜드마크 좌우 대칭 편차 분석",
+                        0.15,
+                        f"검출 안면 {face.get('detected_faces')}개 · 과대칭(전체 {_f(face.get('raw_asymmetry'))} · "
+                        f"내부 {_f(face.get('inner_asymmetry'))}) — 실존 인물 최소값(0.107) 미달, AI 완전 합성 의심"))
+                else:
+                    perspectives.append(_perspective(
+                        "안면 비대칭(페이스 스왑)", "Haar Cascade 안면 랜드마크 좌우 대칭 편차 분석",
+                        1.0 - face.get("asymmetry_score", 0.0),
+                        f"검출 안면 {face.get('detected_faces')}개 · 비대칭 점수 {_f(face.get('asymmetry_score'))}"))
             elif not face.get("module_available", True):
                 # cv2 미설치 환경(서버리스 등) — '얼굴 없음'이 아닌 '분석 불가'로 표시
                 perspectives.append(_perspective(
@@ -331,8 +403,12 @@ class ExplainEngine:
                 "editing_artifact_score": round(result.analysis_details.get("artifact_score", 0.0), 4),
                 "semantic_consistency_score": round(result.analysis_details.get("semantic_score", 1.0), 4)
             },
+            # 역사 이미지 분류 결과 — 확장 프로그램 배지 부착 여부 판정에 사용
+            "history_relevance": (result.analysis_details.get("history_relevance")
+                                  if media_type == "image" else None),
             "perspectives": ExplainEngine.build_perspectives(result, media_type),
-            "significance": SIGNIFICANCE if ExplainEngine.should_include_significance(result, media_type) else None,
+            "significance": (_significance_for(result)
+                             if ExplainEngine.should_include_significance(result, "text") else None),
             "explanations": [],
             "evidence": (result.analysis_details.get("fact_consistency", {}) or {}).get("evidence_sample", []),
             "reference": (result.analysis_details.get("fact_consistency", {}) or {}).get("reference") or {},

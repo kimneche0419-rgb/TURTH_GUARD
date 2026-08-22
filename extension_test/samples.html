@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Truth History 확장 — 역사 이미지 필터 예시 셋</title>
+<style>
+  body { font-family: sans-serif; max-width: 900px; margin: 24px auto; background: #f8fafc; }
+  h2 { border-bottom: 2px solid #cbd5e1; padding-bottom: 4px; }
+  figure { display: inline-block; margin: 12px; background: #fff; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; }
+  img { display: block; width: 220px; height: auto; }
+  figcaption { font-size: 13px; color: #475569; margin-top: 6px; }
+  .expect { font-size: 12px; font-weight: bold; }
+  .expect.badge { color: #16a34a; }
+  .expect.skip { color: #94a3b8; }
+  header span { font-size: 14px; color: #64748b; }
+</style>
+</head>
+<body>
+<h1>🖼️ 역사 이미지 필터 예시 셋</h1>
+<header><span>기대 결과 — <b class="expect badge">배지 부착</b>: 역사 키워드 신호(alt/파일명/캡션) 있는 이미지만. <b class="expect skip">skip</b>: 비역사·광고.</span></header>
+
+<h2>역사 이미지 (배지 부착 기대)</h2>
+
+<figure>
+  <img src="samples/sejong-portrait.png" alt="세종대왕 어진 (조선 4대 왕)">
+  <figcaption>H1 — alt 키워드 "세종/조선/왕"</figcaption>
+</figure>
+
+<figure>
+  <img src="samples/goryeo-celadon.jpg" alt="">
+  <figcaption>H2 — 파일명·URL 키워드 "goryeo-celadon" (alt 없음)</figcaption>
+</figure>
+
+<figure>
+  <img src="samples/joseon-annals.jpg" alt="">
+  <figcaption>H3 — figure 캡션 키워드 "조선왕조실록 국보 도감"</figcaption>
+</figure>
+
+<h2>비역사 이미지 (skip 기대)</h2>
+
+<figure>
+  <img src="samples/cat-meme.png" alt="웃긴 고양이 짤">
+  <figcaption>N1 — 일반 밈 이미지</figcaption>
+</figure>
+
+<figure>
+  <img src="samples/profile-avatar.jpg" alt="내 프로필 사진">
+  <figcaption>N2 — 프로필 아바타</figcaption>
+</figure>
+
+<figure>
+  <img src="samples/sunset-beach.jpg" alt="제주도 여행 노을">
+  <figcaption>N3 — 풍경 사진</figcaption>
+</figure>
+
+<h2>광고 (skip 기대)</h2>
+
+<figure>
+  <!-- IAB 300x250 광고 크기 + 광고 키워드 -->
+  <img src="samples/ad-banner-300x250.jpg" alt="ad banner" width="300" height="250" class="ad">
+  <figcaption>AD — 광고 배너 (300x250 + ad 키워드)</figcaption>
+</figure>
+
+</body>
+</html>

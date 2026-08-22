@@ -267,6 +267,34 @@
     return false;
   }
 
+  // 역사 이미지 판별 — 역사 관련 신호(제목·파일명·캡션·주변 텍스트 키워드)가
+  // 있는 이미지에만 검증 배지를 붙인다. 신호가 없는 일반 이미지는 skip.
+  var TH_HISTORY_RE = /역사|사료|유물|유적|문화재|고궁|궁궐|왕|왕조|왕실|황제|국왕|세종|이순신|장군|무신|문신|양반|조선|고조선|고구려|백제|신라|가야|발해|고려|대한제국|개화기|일제|강점기|독립운동|의병|동학|임진|정묘|병자|병인|신미|을미|갑오|갑신|무신란|정변|반란|전투|전쟁|회군|북벌|북진|탑|불상|석굴|벽화|고분|무덤|봉분|갑옷|투구|궁시|활|칼|검|도검|토기|청자|백자|분청|기와|와당|목판|필사|고문서|교지|어보|옥책|국새|어새|지도|회람|반차|의궤|의장|冕|곤룡|원삼|홍룡포|익선관|새마을|남대문|동대문|광화문|수원화성|historical|history|dynasty|king|queen|royal|empire|emperor|Joseon|Chosun|Goguryeo|Baekje|Silla|Goryeo|artifact|relic|heritage|temple|shrine|palace|tomb|museum|medieval|armor|sword|painting|scroll|map/i;
+  function thLooksHistorical(img) {
+    var sig = [img.getAttribute("alt"), img.getAttribute("title"),
+               img.getAttribute("aria-label"), img.getAttribute("data-caption"),
+               img.src].join(" ");
+    if (TH_HISTORY_RE.test(sig)) return true;
+    try {
+      // figure 캡션 및 인접 텍스트(이미지 설명)도 신호로 사용
+      var fig = img.closest("figure");
+      if (fig && TH_HISTORY_RE.test(fig.innerText || "")) return true;
+      var cap = img.parentElement && img.parentElement.querySelector("figcaption");
+      if (cap && TH_HISTORY_RE.test(cap.innerText || "")) return true;
+    } catch (_) {}
+    return false;
+  }
+
+  // 페이지 컨텍스트 판별 — 역사 콘텐츠 페이지에서는 신호 없는 이미지도 서버에 맡김
+  function thPageIsHistory() {
+    if (thPageIsHistory._c != null) return thPageIsHistory._c;
+    var sig = [document.title, location.href,
+               (document.querySelector("h1") || {}).innerText || ""].join(" ");
+    thPageIsHistory._c = TH_HISTORY_RE.test(sig);
+    return thPageIsHistory._c;
+  }
+
+
   // 재렌더링으로 복제된 기존 배지 제거 — 같은 대상에 판정이 두 번 붙는 것을 방지
   function thRemoveAdjacentBanners(el) {
     try {
@@ -293,6 +321,9 @@
       chrome.runtime.sendMessage({ type: "TH_SCAN_MEDIA", url: img.src, kind: "image" }, (resp) => {
         if (chrome.runtime.lastError) return;
         if (resp && resp.ok && resp.report) {
+          // 서버 이미지 분류기 판정 — 역사 이미지가 아니면 배지 미부착
+          var hr = resp.report.history_relevance;
+          if (hr && hr.is_history === false) return;
           try {
             thRemoveAdjacentBanners(img); // 재렌더링 복제 배지 제거(중복 판정 방지)
             var b = thBuildBanner(resp.report, { sourceUrl: img.src, kind: "image" });
@@ -310,8 +341,14 @@
     document.querySelectorAll("img").forEach((img) => {
       if (!img.src || img.dataset.thMediaScanned) return;
       var w = img.naturalWidth || img.width || 0;
+      // 역사 페이지(제목·URL에 역사 키워드)에서는 텍스트 신호 없는 이미지도
+      // 서버 분류기(파일명·세피아/흑백 픽셀 휴리스틱)에 맡겨 스캔한다.
       if (thLooksLikeAd(img) || thLooksLikeSiteChrome(img)) {
         img.dataset.thMediaScanned = "skip"; // 광고·로고/마크 — 배지 미부착
+        return;
+      }
+      if (!thLooksHistorical(img) && !thPageIsHistory()) {
+        img.dataset.thMediaScanned = "skip"; // 비역사 이미지 — 배지 미부착
         return;
       }
       if (w >= 64) {
@@ -321,8 +358,7 @@
         img.addEventListener("load", () => {
           if (img.dataset.thMediaScanned !== "pending") return;
           img.dataset.thMediaScanned = "";
-          if (thLooksLikeAd(img) || thLooksLikeSiteChrome(img)) { img.dataset.thMediaScanned = "skip"; return; }
-          if ((img.naturalWidth || 0) >= 64) thScanImage(img);
+          if (thLooksLikeAd(img) || thLooksLikeSiteChrome(img) || (!thLooksHistorical(img) && !thPageIsHistory())) { img.dataset.thMediaScanned = "skip"; return; }
         }, { once: true });
       }
     });
