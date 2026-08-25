@@ -21,13 +21,14 @@ function renderStatus(report) {
     return;
   }
   const d = report.decision || {};
-  const cred = Math.round((d.credibility_score == null ? 1 : d.credibility_score) * 100);
+  const risk = Math.round((d.risk_score == null ? 0 : d.risk_score) * 100);
   const reasons = (report.explanations || []).map((e) => e.message).filter(Boolean);
   const reasonsHtml = reasons.length
     ? `<ul class="reasons">${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>`
-    : '<p class="muted" style="margin:6px 0 0 0;">특이 역사 왜곡 징후 없음</p>';
+    : "";
+
   el.innerHTML =
-    `<div class="cred ${riskClass(d.risk_level)}">신뢰도 ${cred}% · ${escapeHtml(d.risk_level || "LOW")}</div>` +
+    `<div class="cred ${riskClass(d.risk_level)}">위험도 ${risk}% · ${escapeHtml(d.risk_level || "LOW")}</div>` +
     `<div class="muted" style="margin-top:2px;">${d.is_manipulated ? "역사 왜곡·할루시네이션 의심" : "정상"}</div>` +
     reasonsHtml;
 }

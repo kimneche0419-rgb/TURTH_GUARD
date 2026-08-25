@@ -16,7 +16,7 @@ import {
 
 interface Decision {
   is_manipulated: boolean;
-  credibility_score: number;
+  risk_score: number;
   risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 }
 
@@ -440,14 +440,14 @@ export default function App() {
                       stroke={getRiskColor(result.decision.risk_level)} 
                       strokeWidth="8" 
                       strokeDasharray={2 * Math.PI * 55}
-                      strokeDashoffset={2 * Math.PI * 55 * (1.0 - result.decision.credibility_score)}
+                      strokeDashoffset={2 * Math.PI * 55 * (1.0 - result.decision.risk_score)}
                       strokeLinecap="round"
                     />
                   </svg>
                   <div style={{ position: 'absolute', textAlign: 'center' }}>
-                    <span style={{ fontSize: '28px', fontWeight: 800 }}>{(result.decision.credibility_score * 100).toFixed(0)}</span>
+                    <span style={{ fontSize: '28px', fontWeight: 800 }}>{(result.decision.risk_score * 100).toFixed(0)}</span>
                     <span style={{ fontSize: '14px', color: '#94a3b8' }}>%</span>
-                    <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0, textTransform: 'uppercase' }}>신뢰도</p>
+                    <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0, textTransform: 'uppercase' }}>위험도</p>
                   </div>
                 </div>
                 <div style={{ marginTop: '16px', textAlign: 'center' }}>

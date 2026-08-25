@@ -50,7 +50,7 @@ class TestTruthHistoryAnalyzers(unittest.TestCase):
             
         result = analyzer.analyze(text_content)
         
-        self.assertIsNotNone(result.credibility_score)
+        self.assertIsNotNone(result.risk_score)
         self.assertIsInstance(result.is_manipulated, bool)
         self.assertIn("ai_generation", result.analysis_details)
         self.assertIn("source_credibility", result.analysis_details)
@@ -84,10 +84,10 @@ class TestTruthHistoryAnalyzers(unittest.TestCase):
         with _patch.object(LMI, "import_module", staticmethod(_no_cv2)):
             result = analyzer.analyze(self.image_path)
         self.assertNotIn("중립(50%) 결과 반환됨", " ".join(result.reasons))
-        self.assertNotEqual(result.credibility_score, 0.50)
+        self.assertNotEqual(result.risk_score, 0.50)
 
     def _assert_image_result(self, result):
-        self.assertIsNotNone(result.credibility_score)
+        self.assertIsNotNone(result.risk_score)
         self.assertIsInstance(result.is_manipulated, bool)
         self.assertIn("error_level_analysis", result.analysis_details)
         self.assertIn("frequency_analysis", result.analysis_details)
@@ -98,7 +98,7 @@ class TestTruthHistoryAnalyzers(unittest.TestCase):
         analyzer = VideoAnalyzer()
         result = analyzer.analyze(self.video_path)
         
-        self.assertIsNotNone(result.credibility_score)
+        self.assertIsNotNone(result.risk_score)
         self.assertIsInstance(result.is_manipulated, bool)
         # 피드백 보장 — 정상 컨텐츠여도 판정 근거가 항상 제공되어야 함
         self.assertTrue(result.reasons)
@@ -107,7 +107,7 @@ class TestTruthHistoryAnalyzers(unittest.TestCase):
         analyzer = AudioAnalyzer()
         result = analyzer.analyze(self.audio_path, transcript="긴급 송금 이체 해주세요. 검찰 금융감독원 수사 대출 계좌입니다.")
         
-        self.assertIsNotNone(result.credibility_score)
+        self.assertIsNotNone(result.risk_score)
         # 보이스피싱 키워드가 다수 매칭되었으므로 조작 의심(is_manipulated=True)으로 나와야 함
         self.assertTrue(result.is_manipulated)
         self.assertIn("phishing_analysis", result.analysis_details)

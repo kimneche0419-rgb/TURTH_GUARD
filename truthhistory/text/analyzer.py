@@ -16,6 +16,7 @@ _DISPUTE_CLUSTERS = {
     "동북공정(고구려·발해 귀속)": ["동북공정", "고구려", "발해", "요동", "한사군"],
     "일제 강제동원·위안부": ["강제동원", "징용", "위안부", "일제강점", "강제징집"],
     "6·25 발발 주체": ["6·25", "육이오", "한국전쟁", "북침", "남침", "6.25"],
+    "임진왜란·조선 침략 서술": ["임진왜란", "정유재란", "이순신", "거북선", "한산도대첩", "명량"],
 }
 
 
@@ -53,6 +54,8 @@ class TextAnalyzer(BaseAnalyzer):
         # 1. AI 생성 가능성 분석
         ai_results = self.detect_ai_generation(data)
         ai_prob = ai_results.get("ai_probability", 0.0)
+        # 정보 부족으로 인한 중립값(0.5)은 실제 위험 신호가 아니므로 위험도 등급 산정에서 제외
+        ai_prob_signal = 0.0 if ai_results.get("method") == "insufficient_data" else ai_prob
 
         # 2. 팩트체크 분석
         fact_results = self.analyze_fact_consistency(data, context)
@@ -79,11 +82,11 @@ class TextAnalyzer(BaseAnalyzer):
         # 영토·지정학 쟁점 주제 검출 — 지도 첨부는 이 주제가 있을 때만, 주제별로 다른 지도
         dispute_topics = detect_dispute_topics(data)
 
-        # 가중합 스코어링 공식 적용
-        credibility_score = (
-            self.weights["fact_weight"] * consistency_score +
-            self.weights["sensationalism_weight"] * (1.0 - sensation_index) +
-            self.weights["source_weight"] * source_score
+        # 가중합 스코어링 공식 적용 — 위험 점수(0.0=안전 ~ 1.0=위험, 높을수록 위험)
+        risk_score = (
+            self.weights["fact_weight"] * (1.0 - consistency_score) +
+            self.weights["sensationalism_weight"] * sensation_index +
+            self.weights["source_weight"] * (1.0 - source_score)
         )
         # OpenRouter 무료 LLM 고증 심사 (키 있을 때만, 실패·미설정 시 기존 경로 유지)
         llm_judge = {"available": False, "error": "비활성"}
@@ -92,21 +95,22 @@ class TextAnalyzer(BaseAnalyzer):
             llm_judge = verify_with_openrouter(data, self.openrouter_api_key, self.openrouter_model)
             if llm_judge.get("available") and llm_judge.get("confidence", 0.0) >= 0.7:
                 if llm_judge.get("is_hallucination"):
-                    credibility_score = min(credibility_score, 0.35)
+                    risk_score = max(risk_score, 0.65)
                 else:
-                    credibility_score = min(1.0, credibility_score + 0.05)
+                    risk_score = max(0.0, risk_score - 0.05)
 
-        # 결정론 사료 위반(연표 상충·미정정 시대착오) 상한 — 가중합 희석 방지.
-        # 선동성(중립 1.0)·출처(NEI 중립 0.5) 가중치가 국사편찬위원회 연표라는
-        # 결정론 위반을 0.5 판정 임계 아래로 묽게 만들지 않는다(LLM 심사 상한과 동일 기준).
+        # 결정론 사료 위반(연표 상충·미정정 시대착오) 하한 — 가중합 희석 방지.
+        # 선동성(중립 0.0)·출처(NEI 중립 0.5) 가중치가 국사편찬위원회 연표라는
+        # 결정론 위반을 0.5 판정 임계 아래로 묽게 만들지 않는다(LLM 심사 하한과 동일 기준).
         chrono_hard = (fact_results.get("chronology", {}).get("contradiction_count", 0) or 0) > 0
         ana_hard = bool(fact_results.get("anachronism", {}).get("anachronism")) and not fact_results.get("debunked")
         if chrono_hard or ana_hard:
-            credibility_score = min(credibility_score, 0.35)
+            risk_score = max(risk_score, 0.65)
 
         # 위험도 산출
 
-        risk_level = self._determine_risk_level(credibility_score, ai_prob)
+        risk_level = self._determine_risk_level(risk_score, ai_prob_signal)
+
 
         # 판단 근거 작성
         reasons = []
@@ -158,8 +162,8 @@ class TextAnalyzer(BaseAnalyzer):
             else:
                 reasons.append("이상 징후 미검출 — 명확한 검증 신호 없음(중립 처리), 독자의 횡적 검증 권장")
         return AnalysisResult(
-            is_manipulated=(credibility_score < 0.5) or (ai_prob > 0.85),
-            credibility_score=round(credibility_score, 4),
+            is_manipulated=(risk_score > 0.5) or (ai_prob > 0.85),
+            risk_score=round(risk_score, 4),
             risk_level=risk_level,
             ai_probability=round(ai_prob, 4),
             analysis_details={
@@ -291,13 +295,18 @@ class TextAnalyzer(BaseAnalyzer):
             torch = LazyModuleImporter.import_module("torch", "text")
             transformers = LazyModuleImporter.import_module("transformers", "text")
             
-            # transformers/torch 설치 시 GPT-2 기반 실제 Perplexity 산출
-            # (미설치 시 하단 어휘 다양도 휴리스틱으로 폴백)
+            # GPT-2는 영어 모델 — 한글 가독 텍스트는 토큰 파편화로 PPL이 왜곡되므로
+            # 어휘 다양도 휴리스틱으로 폴백. 토큰 20 미만 단문도 통계적으로 불안정해 제외.
+            hangul = sum(1 for ch in text if '가' <= ch <= '힣')
+            letters = sum(1 for ch in text if ch.isalpha())
+            if (letters and hangul / letters > 0.3):
+                return self._lexical_ai_probability(text)
             tokenizer = transformers.AutoTokenizer.from_pretrained("gpt2")
             model = transformers.AutoModelForCausalLM.from_pretrained("gpt2")
-            
             encodings = tokenizer(text, return_tensors="pt")
             input_ids = encodings.input_ids
+            if input_ids.shape[1] < 20:
+                return self._lexical_ai_probability(text)
             with torch.no_grad():
                 outputs = model(input_ids, labels=input_ids.clone())
                 loss = outputs.loss
@@ -308,20 +317,25 @@ class TextAnalyzer(BaseAnalyzer):
             return {"ai_probability": ai_prob, "perplexity": ppl, "burstiness": 0.1, "method": "perplexity"}
             
         except (ImportError, Exception):
-            # 폴백: Lexical Diversity (어휘 다양도 지수)
-            words = text.lower().split()
-            if len(words) < 10:
-                return {"ai_probability": 0.5, "perplexity": 0.0, "burstiness": 0.0, "method": "fallback_lexical"}
-                
-            unique_ratio = len(set(words)) / len(words)
-            # 어휘 다양성이 비정상적으로 낮고 단어 패턴이 고정적일수록 AI 확률 업
-            ai_prob = min(max(1.0 - (unique_ratio * 1.2), 0.0), 1.0)
-            return {
-                "ai_probability": round(ai_prob, 4),
-                "perplexity": 0.0,
-                "burstiness": 0.0,
-                "method": "fallback_lexical"
-            }
+            return self._lexical_ai_probability(text)
+
+    @staticmethod
+    def _lexical_ai_probability(text: str) -> Dict[str, Any]:
+        # 폴백: Lexical Diversity (어휘 다양도 지수)
+        words = text.lower().split()
+        if len(words) < 10:
+            return {"ai_probability": 0.5, "perplexity": 0.0, "burstiness": 0.0, "method": "insufficient_data"}
+            
+        unique_ratio = len(set(words)) / len(words)
+        # 어휘 다양성이 비정상적으로 낮고 단어 패턴이 고정적일수록 AI 확률 업
+        ai_prob = min(max(1.0 - (unique_ratio * 1.2), 0.0), 1.0)
+        return {
+            "ai_probability": round(ai_prob, 4),
+            "perplexity": 0.0,
+            "burstiness": 0.0,
+            "method": "fallback_lexical"
+        }
+
 
     def _search_fact_check_claims(self, query: str) -> List[Dict[str, str]]:
         encoded_query = urllib.parse.quote(query)

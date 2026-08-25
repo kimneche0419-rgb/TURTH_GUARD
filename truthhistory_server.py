@@ -166,7 +166,7 @@ async def scan_stream(
                 "time_start": chunk["time_start"],
                 "time_end": chunk["time_end"],
                 "frames": chunk["frames"],
-                "credibility_score": r.credibility_score,
+                "risk_score": r.risk_score,
                 "ai_probability": r.ai_probability,
                 "risk_level": r.risk_level,
                 "is_manipulated": r.is_manipulated,

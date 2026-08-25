@@ -23,7 +23,7 @@ class TestMCPTools(unittest.TestCase):
         content = response["result"]["content"][0]["text"]
         report = json.loads(content)
         # 확장 프로그램 판정 리포트와 동일한 필드 노출
-        for key in ("is_manipulated", "credibility_score", "risk_level", "ai_probability", "reasons", "analysis_details"):
+        for key in ("is_manipulated", "risk_score", "risk_level", "ai_probability", "reasons", "analysis_details"):
             self.assertIn(key, report)
         self.assertIsInstance(report["reasons"], list)
 

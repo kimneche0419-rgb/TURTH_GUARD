@@ -84,11 +84,11 @@ class AnalysisResult(BaseModel):
         ..., 
         description="콘텐츠의 의도적 조작, 위변조, 또는 허위정보 여부 결정값"
     )
-    credibility_score: float = Field(
+    risk_score: float = Field(
         ..., 
         ge=0.0, 
         le=1.0, 
-        description="종합 신뢰도 정량 점수 (0.0: 완전 신뢰 불가 ~ 1.0: 완벽한 정합성)"
+        description="종합 위험 점수 (0.0: 안전 ~ 1.0: 강한 위험 — 높을수록 위험)"
     )
     risk_level: str = Field(
         "LOW", 

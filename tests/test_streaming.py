@@ -56,7 +56,7 @@ class TestStreamingVideoAnalyzer(unittest.TestCase):
         analyzer = StreamingVideoAnalyzer({"chunk_seconds": 2.0})
         for chunk in analyzer.stream_analyze("fake", capture=_make_capture(total_frames=120)):
             r = chunk["result"]
-            self.assertTrue(0.0 <= r.credibility_score <= 1.0)
+            self.assertTrue(0.0 <= r.risk_score <= 1.0)
             self.assertIn(r.risk_level, ["LOW", "MEDIUM", "HIGH", "CRITICAL"])
             self.assertTrue(chunk["frames"] > 0)
 
@@ -85,7 +85,7 @@ class TestStreamingVideoAnalyzer(unittest.TestCase):
     def test_summarize_empty_chunks_is_neutral(self):
         analyzer = StreamingVideoAnalyzer()
         summary = analyzer.summarize([])
-        self.assertEqual(summary.credibility_score, 0.5)
+        self.assertEqual(summary.risk_score, 0.5)
         self.assertFalse(summary.is_manipulated)
         self.assertEqual(summary.analysis_details["chunk_count"], 0)
 
@@ -93,11 +93,11 @@ class TestStreamingVideoAnalyzer(unittest.TestCase):
         analyzer = StreamingVideoAnalyzer()
         from truthhistory.base import AnalysisResult
         good = {"chunk_index": 0, "time_start": 0.0, "time_end": 2.0, "frames": 4,
-                "result": AnalysisResult(is_manipulated=False, credibility_score=0.95, ai_probability=0.0)}
+                "result": AnalysisResult(is_manipulated=False, risk_score=0.05, ai_probability=0.0)}
         bad = {"chunk_index": 1, "time_start": 2.0, "time_end": 4.0, "frames": 4,
-               "result": AnalysisResult(is_manipulated=True, credibility_score=0.3, ai_probability=0.2)}
+               "result": AnalysisResult(is_manipulated=True, risk_score=0.7, ai_probability=0.2)}
         summary = analyzer.summarize([good, bad])
-        self.assertEqual(summary.credibility_score, 0.3)  # 보수적(최악 청크) 신뢰도
+        self.assertEqual(summary.risk_score, 0.7)  # 보수적(최악 청크=최대 위험)
         self.assertTrue(summary.is_manipulated)
         self.assertEqual(summary.ai_probability, 0.2)  # 최대 AI 확률
         self.assertEqual(summary.analysis_details["worst_chunk_index"], 1)
@@ -120,7 +120,7 @@ class TestStreamingVideoAnalyzer(unittest.TestCase):
             analyzer = StreamingVideoAnalyzer({"chunk_seconds": 2.0})
             summary = analyzer.analyze(path)
             self.assertGreaterEqual(summary.analysis_details["chunk_count"], 2)
-            self.assertTrue(0.0 <= summary.credibility_score <= 1.0)
+            self.assertTrue(0.0 <= summary.risk_score <= 1.0)
             self.assertTrue(any("chunk" in k or "chunks" in k for k in summary.analysis_details))
 
     def test_unopenable_source_raises_value_error(self):

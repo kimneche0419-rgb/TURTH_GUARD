@@ -164,14 +164,14 @@ async function scanYoutube(url) {
     ...((thumbReport && thumbReport.explanations) || []),
     ...((titleReport && titleReport.explanations) || []),
   ];
-  const creds = [thumbReport, titleReport]
+  const scoreList = [thumbReport, titleReport]
     .filter(Boolean)
-    .map((r) => (r.decision && r.decision.credibility_score != null ? r.decision.credibility_score : 1));
+    .map((r) => (r.decision && r.decision.risk_score != null ? r.decision.risk_score : 0));
   const risks = [thumbReport, titleReport]
     .filter(Boolean)
     .map((r) => (r.decision && r.decision.risk_level) || "LOW");
   const worst = risks.sort((a, b) => RISK_ORDER.indexOf(b) - RISK_ORDER.indexOf(a))[0] || "LOW";
-  const cred = creds.length ? Math.min(...creds) : 0.5;
+  const risk = scoreList.length ? Math.max(...scoreList) : 0.5;
   const manipulated = !!(thumbReport || titleReport) &&
     ((thumbReport && thumbReport.decision && thumbReport.decision.is_manipulated) ||
      (titleReport && titleReport.decision && titleReport.decision.is_manipulated));
@@ -179,7 +179,7 @@ async function scanYoutube(url) {
   return {
     target_file: meta.title,
     media_type: "video(youtube)",
-    decision: { is_manipulated: manipulated, credibility_score: cred, risk_level: worst },
+    decision: { is_manipulated: manipulated, risk_score: risk, risk_level: worst },
     metrics: {
       ai_generation_probability: (titleReport && titleReport.metrics && titleReport.metrics.ai_generation_probability) || 0,
       editing_artifact_score: (thumbReport && thumbReport.metrics && thumbReport.metrics.editing_artifact_score) || 0,

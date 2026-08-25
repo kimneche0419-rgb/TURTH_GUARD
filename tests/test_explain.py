@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from truthhistory.text.analyzer import TextAnalyzer
 from truthhistory.explain.engine import ExplainEngine, SIGNIFICANCE
+from truthhistory.explain.engine import _significance_for
 
 
 def _no_external_evidence():
@@ -37,7 +38,7 @@ class TestPerspectives(unittest.TestCase):
         # 정합 사례: 연표 KB 각도는 검증 일치로 정상 판정
         kb = next(a for a in perspectives["angles"] if a["name"] == "한국사 연표 KB")
         self.assertEqual(kb["verdict"], "정상")
-        self.assertEqual(kb["score"], 1.0)
+        self.assertEqual(kb["score"], 0.0)
         # 모든 각도는 판정·근거 필드를 갖는다
         for angle in perspectives["angles"]:
             self.assertIn(angle["verdict"], ["정상", "주의", "의심", "미판정"])
@@ -60,7 +61,7 @@ class TestPerspectives(unittest.TestCase):
         self.assertGreaterEqual(perspectives["summary"]["suspected_angles"], 1)
         self.assertIn("의심", perspectives["summary"]["note"])
         # 결정론 사료 위반은 가중합 희석 없이 상한 적용 → 위조 의심 판정
-        self.assertLessEqual(result.credibility_score, 0.35)
+        self.assertGreaterEqual(result.risk_score, 0.65)
         self.assertTrue(result.is_manipulated)
 
     def test_summary_counts_only_engaged_angles(self):
@@ -190,7 +191,7 @@ class TestSignificance(unittest.TestCase):
         result = type("R", (), {})()
         result.analysis_details = {}
         result.is_manipulated = False
-        result.credibility_score = 0.5
+        result.risk_score = 0.5
         result.risk_level = "MEDIUM"
         result.ai_probability = 0.0
         self.assertFalse(ExplainEngine.should_include_significance(result, "image"))
@@ -223,7 +224,7 @@ class TestSignificance(unittest.TestCase):
         result.analysis_details["deepfake_analysis"] = {"detected_faces": 1, "asymmetry_score": 0.2, "module_available": True}
         perspectives = ExplainEngine.build_perspectives(result, "image")
         face = next(a for a in perspectives["angles"] if a["name"].startswith("안면 비대칭"))
-        self.assertEqual(face["score"], 0.8)
+        self.assertEqual(face["score"], 0.2)
         self.assertEqual(face["verdict"], "정상")
 
     def test_significance_covers_multiple_disputes_with_map(self):
@@ -237,6 +238,20 @@ class TestSignificance(unittest.TestCase):
         self.assertGreaterEqual(len(map_info["sources"]), 3)
         for src in map_info["sources"]:
             self.assertTrue(src["url"].startswith("https://"))
+
+    def test_significance_reasons_match_detected_topic(self):
+        # 검출 주제에 맞는 구체적 근거가 일반 사유보다 앞에 배치되고,
+        # 영토 쟁점이 아닌 주제(임진왜란)는 지도가 첨부되지 않는다.
+        result = type("R", (), {})()
+        result.analysis_details = {"dispute_topics": ["임진왜란·조선 침략 서술"]}
+        sig = _significance_for(result)
+        self.assertIn("임진왜란", sig["reasons"][0]["tag"])
+        self.assertGreater(len(sig["reasons"]), len(SIGNIFICANCE["reasons"]))
+        self.assertIsNone(sig["map"])
+        # 영토 쟁점(독도)은 주제별 지도 유지
+        result.analysis_details = {"dispute_topics": ["독도·동해 표기"]}
+        sig = _significance_for(result)
+        self.assertIn("독도", sig["map"]["title"])
 
     def test_gauge_rendering_bounds(self):
         self.assertEqual(ExplainEngine.render_gauge(1.0), "█" * 20)

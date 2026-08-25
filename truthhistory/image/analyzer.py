@@ -44,14 +44,14 @@ class ImageAnalyzer(BaseAnalyzer):
             0.85 if deepfake_results.get("synthetic_symmetry") else 0.0,
         )
 
-        # 가중합 신뢰도 계산
-        credibility_score = 1.0 - (
+        # 가중합 위험 점수 계산 (높을수록 위험)
+        risk_score = (
             self.weights["ela_weight"] * ela_score +
             self.weights["fft_weight"] * ai_prob +
             self.weights["deepfake_weight"] * deepfake_score
         )
 
-        risk_level = self._determine_risk_level(credibility_score, ai_prob)
+        risk_level = self._determine_risk_level(risk_score, ai_prob)
 
         reasons = []
         if ela_results.get("has_manipulation_suspect", False):
@@ -69,20 +69,20 @@ class ImageAnalyzer(BaseAnalyzer):
         # 피드백 보장: 의존성 부재 경고 또는 정상 판정 근거를 항상 제공
         modules_available = ela_results.get("module_available", True) and fft_results.get("module_available", True)
         if not modules_available:
-            credibility_score = 0.50
+            risk_score = 0.50
             risk_level = "MEDIUM"
             is_manipulated = False
             reasons.append("⚠ 이미지 정밀 분석 모듈(Pillow/OpenCV)이 설치되지 않은 환경 — 중립(50%) 결과 반환됨. "
                            "정밀 ELA/FFT 분석은 로컬 CLI(`th scan 이미지경로`) 또는 `pip install -e .[image]` 후 이용")
         else:
-            is_manipulated = (credibility_score < 0.6) or (ai_prob > 0.85)
+            is_manipulated = (risk_score > 0.4) or (ai_prob > 0.85)
             if not reasons:
                 reasons.append(f"이상 징후 미검출 — ELA 평균 편차 {ela_results.get('mean_difference', 0.0):.2f}"
                                f"(정상 범위) · FFT 주파수 스파이크 {fft_results.get('spike_count', 0)}개 · 안면 비대칭 정상")
 
         return AnalysisResult(
             is_manipulated=is_manipulated,
-            credibility_score=round(max(credibility_score, 0.0), 4),
+            risk_score=round(max(risk_score, 0.0), 4),
             risk_level=risk_level,
             ai_probability=round(ai_prob, 4),
             analysis_details={

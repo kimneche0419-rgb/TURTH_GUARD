@@ -85,7 +85,7 @@ def handle_call_tool(request_id, name, arguments):
             # Format output — 다각도 판별 + 지정학 왜곡 불허 사유(역사 영역 텍스트에만)
             report = {
                 "is_manipulated": result.is_manipulated,
-                "credibility_score": result.credibility_score,
+                "risk_score": result.risk_score,
                 "risk_level": result.risk_level,
                 "ai_probability": result.ai_probability,
                 "reasons": result.reasons,
@@ -125,7 +125,7 @@ def handle_call_tool(request_id, name, arguments):
                 "target_file": os.path.basename(path),
                 "media_type": media_type,
                 "is_manipulated": result.is_manipulated,
-                "credibility_score": result.credibility_score,
+                "risk_score": result.risk_score,
                 "risk_level": result.risk_level,
                 "ai_probability": result.ai_probability,
                 "reasons": result.reasons,

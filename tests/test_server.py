@@ -31,7 +31,7 @@ class TestTruthHistoryServer(unittest.TestCase):
         self.assertIn("지정학", data["significance"]["title"])
         self.assertGreaterEqual(len(data["significance"]["reasons"]), 5)
         self.assertIsInstance(data["decision"]["is_manipulated"], bool)
-        self.assertIn("credibility_score", data["decision"])
+        self.assertIn("risk_score", data["decision"])
 
     def test_scan_text_rejects_empty_body(self):
         r = self.client.post("/api/v1/scan/text", json={"text": "   "})

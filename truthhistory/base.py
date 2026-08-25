@@ -9,7 +9,7 @@ class AnalysisResult(BaseModel):
     모든 분석기 결과의 공통 데이터 규격
     """
     is_manipulated: bool = Field(..., description="조작 또는 허위정보 여부")
-    credibility_score: float = Field(..., description="신뢰도 점수 (0.0 ~ 1.0)")
+    risk_score: float = Field(..., description="위험 점수 (0.0=안전 ~ 1.0=위험, 높을수록 위험)")
     risk_level: str = Field("LOW", description="위험 수준 (LOW, MEDIUM, HIGH, CRITICAL)")
     ai_probability: float = Field(..., description="AI 생성/합성 가능성 확률 (0.0 ~ 1.0)")
     analysis_details: Dict[str, Any] = Field(default_factory=dict, description="각 분석 모듈 고유의 상세 세부 지표")
@@ -45,15 +45,15 @@ class BaseAnalyzer(ABC):
         """
         pass
 
-    def _determine_risk_level(self, credibility_score: float, ai_probability: float) -> str:
+    def _determine_risk_level(self, risk_score: float, ai_probability: float) -> str:
         """
-        점수 기반으로 위험 수준을 자동으로 결정합니다.
+        점수 기반으로 위험 수준을 자동으로 결정합니다 (점수가 높을수록 위험).
         """
-        if credibility_score < 0.35 or ai_probability > 0.85:
+        if risk_score > 0.65 or ai_probability > 0.85:
             return "CRITICAL"
-        elif credibility_score < 0.6 or ai_probability > 0.6:
+        elif risk_score > 0.4 or ai_probability > 0.6:
             return "HIGH"
-        elif credibility_score < 0.8 or ai_probability > 0.3:
+        elif risk_score > 0.2 or ai_probability > 0.3:
             return "MEDIUM"
         return "LOW"
 

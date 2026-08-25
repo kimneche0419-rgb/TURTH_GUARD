@@ -87,7 +87,7 @@ class TestAnalyzerLLMIntegration(unittest.TestCase):
         with patch("truthhistory.text.llm.verify_with_openrouter", return_value=verdict):
             analyzer = TextAnalyzer({"openrouter_api_key": "k"})
             res = analyzer.analyze("임진왜란은 1920년에 발발했다")
-        self.assertLessEqual(res.credibility_score, 0.35)
+        self.assertGreaterEqual(res.risk_score, 0.65)
         self.assertTrue(any("OpenRouter" in r and "할루시네이션" in r for r in res.reasons))
 
     @patch("truthhistory.text.evidence.search_wikipedia", return_value=[])

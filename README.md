@@ -244,7 +244,7 @@ th.detect_audio("voice.wav", transcript="의심 문장")            # AI 복제 
 
 # 공통 반환 규격 (AnalysisResult)
 r = th.detect_text("...")
-r.credibility_score   # 신뢰도 0.0~1.0
+r.risk_score           # 위험 점수 0.0(안전)~1.0(위험) — 높을수록 위험
 r.risk_level          # LOW / MEDIUM / HIGH / CRITICAL
 r.ai_probability      # AI 생성/합성 확률
 r.reasons             # 판정 근거 목록 (XAI)

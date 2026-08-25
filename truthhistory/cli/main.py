@@ -110,20 +110,20 @@ def scan(target_path: str, config: str, format: str, threshold: float):
     elif format == "table":
         table = Table(title="[bold green]Truth History Scan Summary[/bold green]")
         table.add_column("Target File", style="cyan")
-        table.add_column("Credibility Score", style="magenta")
+        table.add_column("Risk Score", style="magenta")
         table.add_column("Risk Level", style="yellow")
         table.add_column("Manipulated?", style="red")
         
         table.add_row(
             os.path.basename(target_path),
-            f"{result.credibility_score:.2f}",
+            f"{result.risk_score:.2f}",
             result.risk_level,
             "YES" if result.is_manipulated else "NO"
         )
         console.print(table)
         
     else:  # 'text' 기본 모드
-        from truthhistory.explain.engine import ExplainEngine, SIGNIFICANCE
+        from truthhistory.explain.engine import ExplainEngine, SIGNIFICANCE, _significance_for
 
         perspectives = ExplainEngine.build_perspectives(result, media_type)
         tone_style = {"ok": "green", "warn": "yellow", "bad": "red", "neutral": "dim"}
@@ -133,9 +133,9 @@ def scan(target_path: str, config: str, format: str, threshold: float):
 
         console.print("\n[bold]========== Truth History Scan Report ==========[/bold]")
         console.print(f"대상 파일: [cyan]{target_path}[/cyan]")
-        console.print(f"종합 신뢰도: {result.credibility_score:.2f} ({result.risk_level} RISK)")
+        console.print(f"종합 위험도: {result.risk_score:.2f} ({result.risk_level} RISK)")
         console.print(f"[{tone_style[overall_tone]}]"
-                      f"{ExplainEngine.render_gauge(result.credibility_score)} {result.credibility_score * 100:.0f}%[/]")
+                      f"{ExplainEngine.render_gauge(result.risk_score)} {result.risk_score * 100:.0f}%[/]")
 
         if result.is_manipulated:
             console.log("스캔 결과: [bold red]변조 및 허위 정보 의심[/bold red]")
@@ -162,13 +162,14 @@ def scan(target_path: str, config: str, format: str, threshold: float):
         else:
             console.print(" - 특이사항 없음")
 
-        # ── 지정학적 역사 왜곡이 허용되지 않는 이유 — 역사 영역 콘텐츠에만 표시 ──
-        if media_type == "text" and result.analysis_details.get("history_relevant"):
-            console.print(f"\n[bold]📌 {SIGNIFICANCE['title']}[/bold]")
-            console.print(f"[dim]{SIGNIFICANCE['summary']}[/dim]")
-            for reason in SIGNIFICANCE["reasons"]:
+        # ── 지정학적 역사 왜곡이 허용되지 않는 이유 — 역사 영역 콘텐츠에만, 검출 주제에 맞는 근거 우선 표시 ──
+        if ExplainEngine.should_include_significance(result, media_type):
+            sig = _significance_for(result) or SIGNIFICANCE
+            console.print(f"\n[bold]📌 {sig['title']}[/bold]")
+            console.print(f"[dim]{sig['summary']}[/dim]")
+            for reason in sig["reasons"]:
                 console.print(f" - [bold]{reason['tag']}[/bold]: {reason['detail']}")
-            map_info = SIGNIFICANCE.get("map", {})
+            map_info = sig.get("map") or {}
             if map_info:
                 console.print(f"[bold]🗺️ {map_info['title']}[/bold] [dim]({map_info['note']})[/dim]")
                 for src in map_info.get("sources", []):
@@ -328,8 +329,7 @@ def stream(source: str, chunk_seconds: float, max_chunks, no_early_stop: bool, f
                 color = "green" if r.risk_level == "LOW" else ("yellow" if r.risk_level == "MEDIUM" else "red")
                 console.print(
                     f" [#{chunk['chunk_index'] + 1}] {chunk['time_start']}s ~ {chunk['time_end']}s "
-                    f"({chunk['frames']} frames) → 신뢰도 [{color}]{r.credibility_score:.2f}[/{color}] "
-                    f"{r.risk_level}" + (" [bold red]⚠ 변조 의심[/bold red]" if r.is_manipulated else "")
+                    f"({chunk['frames']} frames) → 위험도 [{color}]{r.risk_score:.2f}[/{color}] "
                 )
     except ValueError as e:
         console.print(f"[bold red]소스 오류:[/bold red] {str(e)}")
@@ -346,13 +346,13 @@ def stream(source: str, chunk_seconds: float, max_chunks, no_early_stop: bool, f
                 "time_start": c["time_start"],
                 "time_end": c["time_end"],
                 "frames": c["frames"],
-                "credibility_score": c["result"].credibility_score,
+                "risk_score": c["result"].risk_score,
                 "ai_probability": c["result"].ai_probability,
                 "risk_level": c["result"].risk_level,
                 "is_manipulated": c["result"].is_manipulated,
             } for c in chunks],
             "summary": {
-                "credibility_score": summary.credibility_score,
+                "risk_score": summary.risk_score,
                 "risk_level": summary.risk_level,
                 "ai_probability": summary.ai_probability,
                 "is_manipulated": summary.is_manipulated,
@@ -361,7 +361,7 @@ def stream(source: str, chunk_seconds: float, max_chunks, no_early_stop: bool, f
         })
     else:
         summary = analyzer.summarize(chunks)
-        console.print(f"\n종합 신뢰도(최악 청크 기준): [magenta]{summary.credibility_score:.2f}[/magenta] ({summary.risk_level} RISK)")
+        console.print(f"\n종합 위험도(최악 청크 기준): [magenta]{summary.risk_score:.2f}[/magenta] ({summary.risk_level} RISK)")
         for reason in summary.reasons:
             console.print(f" - [yellow]{reason}[/yellow]")
         console.print(f"스캔 결과: " + ("[bold red]변조 및 허위 정보 의심[/bold red]" if summary.is_manipulated else "[bold green]정상 콘텐츠[/bold green]"))

@@ -28,13 +28,14 @@ class AudioAnalyzer(BaseAnalyzer):
         phishing_results = self.detect_voice_phishing(transcript)
         phishing_prob = phishing_results.get("phishing_probability", 0.0)
 
-        # 가중치 계산
-        credibility_score = 1.0 - (
+        # 가중치 계산 — 위험 점수(높을수록 위험)
+        risk_score = (
             self.weights["spectral_weight"] * ai_prob +
             self.weights["phishing_weight"] * phishing_prob
         )
 
-        risk_level = self._determine_risk_level(credibility_score, ai_prob)
+        risk_level = self._determine_risk_level(risk_score, ai_prob)
+
 
         reasons = []
         if ai_prob > 0.8:
@@ -45,13 +46,13 @@ class AudioAnalyzer(BaseAnalyzer):
         # 피드백 보장: 의존성 부재 경고 또는 정상 판정 근거를 항상 제공
         modules_available = spectral_results.get("module_available", True)
         if not modules_available:
-            credibility_score = 0.50
+            risk_score = 0.50
             risk_level = "MEDIUM"
             is_manipulated = phishing_prob > 0.7
             reasons.append("⚠ 오디오 정밀 분석 모듈(librosa)이 설치되지 않은 환경 — 중립(50%) 결과 반환됨. "
                            "정밀 MFCC/HNR 분석은 로컬 CLI(`th scan 음성경로`) 또는 `pip install -e .[audio]` 후 이용")
         else:
-            is_manipulated = (credibility_score < 0.6) or (ai_prob > 0.8)
+            is_manipulated = (risk_score > 0.4) or (ai_prob > 0.8)
             if not reasons:
                 reasons.append(f"이상 징후 미검출 — HNR {spectral_results.get('hnr_decibels', 0.0):.1f}dB"
                                "(자연 음성 범위) · 사칭·유도 어휘 패턴 미검출"
@@ -59,7 +60,7 @@ class AudioAnalyzer(BaseAnalyzer):
 
         return AnalysisResult(
             is_manipulated=is_manipulated,
-            credibility_score=round(max(credibility_score, 0.0), 4),
+            risk_score=round(max(risk_score, 0.0), 4),
             risk_level=risk_level,
             ai_probability=round(ai_prob, 4),
             analysis_details={

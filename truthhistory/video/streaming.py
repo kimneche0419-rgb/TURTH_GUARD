@@ -77,12 +77,12 @@ class StreamingVideoAnalyzer(BaseAnalyzer):
         return self.summarize(chunks)
 
     def summarize(self, chunks: List[Dict[str, Any]]) -> AnalysisResult:
-        """청크 결과를 종합한다 — 신뢰도는 최악 청크(보수적), AI 확률은 최대값."""
+        """청크 결과를 종합한다 — 위험 점수는 최악 청크(최대값, 보수적), AI 확률은 최대값."""
         if not chunks:
             return AnalysisResult(
                 is_manipulated=False,
-                credibility_score=0.5,
-                risk_level="LOW",
+                risk_score=0.5,
+                risk_level="MEDIUM",
                 ai_probability=0.0,
                 analysis_details={"chunks": [], "chunk_count": 0},
                 reasons=["스트림에서 분석 가능한 프레임이 없음 — 중립 처리"],
@@ -97,19 +97,20 @@ class StreamingVideoAnalyzer(BaseAnalyzer):
                 "time_start": ch["time_start"],
                 "time_end": ch["time_end"],
                 "frames": ch["frames"],
-                "credibility_score": r.credibility_score,
+                "risk_score": r.risk_score,
                 "ai_probability": r.ai_probability,
                 "risk_level": r.risk_level,
                 "is_manipulated": r.is_manipulated,
             })
-            if r.credibility_score < worst["result"].credibility_score:
+            if r.risk_score > worst["result"].risk_score:
                 worst = ch
 
         worst_result: AnalysisResult = worst["result"]
         max_ai = max(c["result"].ai_probability for c in chunks)
         manipulated_count = sum(1 for c in chunks if c["result"].is_manipulated)
-        credibility = worst_result.credibility_score
-        risk_level = self._determine_risk_level(credibility, max_ai)
+        risk = worst_result.risk_score
+        risk_level = self._determine_risk_level(risk, max_ai)
+
 
         reasons = []
         if manipulated_count:
@@ -123,7 +124,7 @@ class StreamingVideoAnalyzer(BaseAnalyzer):
 
         return AnalysisResult(
             is_manipulated=(manipulated_count > 0) or (max_ai > 0.8),
-            credibility_score=credibility,
+            risk_score=risk,
             risk_level=risk_level,
             ai_probability=round(max_ai, 4),
             analysis_details={
@@ -187,7 +188,7 @@ class StreamingVideoAnalyzer(BaseAnalyzer):
         deepfake = self._core.analyze_deepfake_in_video(frames)
         jitter = temporal.get("jitter_index", 0.0)
         deepfake_score = deepfake.get("max_manipulation_probability", 0.0)
-        credibility = 1.0 - (
+        risk = (
             self._core.weights["jitter_weight"] * jitter +
             self._core.weights["deepfake_weight"] * deepfake_score
         )
@@ -197,9 +198,9 @@ class StreamingVideoAnalyzer(BaseAnalyzer):
         if deepfake_score > 0.8:
             reasons.append(f"안면 영역 합성 패턴 감지 (신뢰도: {deepfake_score * 100:.1f}%)")
         return AnalysisResult(
-            is_manipulated=(credibility < 0.65) or (deepfake_score > 0.8),
-            credibility_score=round(max(credibility, 0.0), 4),
-            risk_level=self._determine_risk_level(credibility, deepfake_score),
+            is_manipulated=(risk > 0.35) or (deepfake_score > 0.8),
+            risk_score=round(max(risk, 0.0), 4),
+            risk_level=self._determine_risk_level(risk, deepfake_score),
             ai_probability=round(deepfake_score, 4),
             analysis_details={
                 "temporal_consistency": temporal,

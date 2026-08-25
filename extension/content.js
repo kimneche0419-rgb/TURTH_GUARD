@@ -50,15 +50,11 @@
     return ({ LOW: "#16a34a", MEDIUM: "#d97706", HIGH: "#dc2626", CRITICAL: "#b91c1c" })[level] || "#64748b";
   }
 
-  // 판정 라벨 — 점수·위험도와 연동된 3단계 (점수 낮으면 중립/주의 판정)
+  // 판정 라벨 — 위험도와 연동된 2단계 (의심되면 경고, 그 외 정상)
   function thVerdict(d) {
     var level = d.risk_level || "LOW";
-    var score = d.credibility_score == null ? 1 : d.credibility_score;
     if (d.is_manipulated || level === "CRITICAL" || level === "HIGH") {
       return { text: "왜곡 의심", cls: "th-ext-bad" };
-    }
-    if (level === "MEDIUM" || score < 0.6) {
-      return { text: "판정 보류(주의)", cls: "th-ext-warn" };
     }
     return { text: "정상", cls: "th-ext-good" };
   }
@@ -128,7 +124,7 @@
 
   function thBuildBanner(report, opts) {
     var d = (report && report.decision) || {};
-    var cred = Math.round(((d.credibility_score == null ? 1 : d.credibility_score)) * 100);
+    var risk = Math.round(((d.risk_score == null ? 0 : d.risk_score)) * 100);
     var level = d.risk_level || "LOW";
     var reasons = (report && report.explanations ? report.explanations : []).map((e) => e.message).filter(Boolean);
     var wrap = document.createElement("div");
@@ -143,12 +139,12 @@
     wrap.innerHTML =
       `<div class="th-ext-head">
         <span class="th-ext-logo">🛡️ Truth History</span>
-        <span class="th-ext-cred">신뢰도 ${cred}% · ${thEscapeHtml(level)}</span>
+        <span class="th-ext-cred">위험도 ${risk}% · ${thEscapeHtml(level)}</span>
         <span class="th-ext-tag ${thVerdict(d).cls}">
           ${thEscapeHtml(thVerdict(d).text)}
         </span>
       </div>
-      ${thGauge(d.credibility_score == null ? 1 : d.credibility_score, thRiskColor(level))}
+      ${thGauge(d.risk_score == null ? 0 : d.risk_score, thRiskColor(level))}
       <div class="th-ext-reasons">${reasonsHtml}</div>
       ${dlHtml}`;
     var dl = wrap.querySelector(".th-ext-dl");
@@ -176,10 +172,10 @@
   function thBuildDetailPanel(report, opts) {
     var d = (report && report.decision) || {};
     var m = (report && report.metrics) || {};
-    var cred = Math.round(((d.credibility_score == null ? 1 : d.credibility_score)) * 100);
-    var reasons = (report && report.explanations ? report.explanations : []).map((e) => e.message).filter(Boolean);
+    var risk = Math.round(((d.risk_score == null ? 0 : d.risk_score)) * 100);
     var evidence = (report && report.evidence) || [];
     var ref = (report && report.reference) || {};
+    var reasons = (report && report.explanations ? report.explanations : []).map((e) => e.message).filter(Boolean);
     var panel = document.createElement("div");
     panel.id = "th-ext-detail";
     var refHtml = ref.snippet
@@ -196,9 +192,8 @@
       : "";
     panel.innerHTML =
       `<div class="th-ext-d-head"><span>🛡️ Truth History 상세 리포트</span><button class="th-ext-d-x">✕</button></div>
-       <div class="th-ext-d-row"><b>신뢰도</b> ${cred}% · ${thEscapeHtml(d.risk_level || "LOW")} — <span class="th-ext-tag ${thVerdict(d).cls}">${thEscapeHtml(thVerdict(d).text)}</span></div>
-       ${thGauge(d.credibility_score == null ? 1 : d.credibility_score, thRiskColor(d.risk_level || "LOW"))}
-       <div class="th-ext-d-row"><b>AI 생성/합성 확률</b> ${Math.round(((m.ai_generation_probability == null ? 0 : m.ai_generation_probability)) * 100)}%</div>
+       <div class="th-ext-d-row"><b>위험도</b> ${risk}% · ${thEscapeHtml(d.risk_level || "LOW")} — <span class="th-ext-tag ${thVerdict(d).cls}">${thEscapeHtml(thVerdict(d).text)}</span></div>
+       ${thGauge(d.risk_score == null ? 0 : d.risk_score, thRiskColor(d.risk_level || "LOW"))}
        <div class="th-ext-d-sec">📋 판정 근거</div>
        <ul class="th-ext-d-list">${reasons.length ? reasons.map((r) => `<li>${thEscapeHtml(r)}</li>`).join("") : "<li>특이 징후 없음</li>"}</ul>
        ${thPerspectivesHtml(report)}

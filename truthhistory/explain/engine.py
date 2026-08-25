@@ -90,17 +90,17 @@ SIGNIFICANCE: Dict[str, Any] = {
     },
 }
 
-# 다각도 판별 기준 — 신뢰도 관점 점수(높을수록 정상)에 대한 판정 문구
-_VERDICTS = ((0.7, "정상", "ok"), (0.4, "주의", "warn"), (-1.0, "의심", "bad"))
+# 다각도 판별 기준 — 위험 관점 점수(높을수록 위험)에 대한 판정 문구
+_VERDICTS = ((0.3, "정상", "ok"), (0.6, "주의", "warn"), (99.0, "의심", "bad"))
 
 
 def _verdict(score: Optional[float]) -> Dict[str, Any]:
-    """신뢰도 관점 점수 → 3단계 판정 + 시각화용 토큰."""
+    """위험 관점 점수(높을수록 위험) → 3단계 판정 + 시각화용 토큰."""
     if score is None:
         return {"verdict": "미판정", "tone": "neutral"}
-    for threshold, label, tone in _VERDICTS:
-        if score >= threshold:
-            return {"verdict": label, "tone": tone}
+    for bound, verdict, tone in _VERDICTS:
+        if score <= bound:
+            return {"verdict": verdict, "tone": tone}
     return {"verdict": "의심", "tone": "bad"}
 
 
@@ -127,6 +127,42 @@ _MAP_FOCUS = {
     "동북공정(고구려·발해 귀속)": {"markers": [("백두산·국경", 190, 102)], "title": "동북공정·고구려발해 귀속 쟁점 지도"},
 }
 _BASE_MAP_MARKERS = [("백두산·국경", 190, 102), ("간도", 213, 70), ("독도", 258, 170), ("사할린", 312, 42)]
+
+# 주제별 지정학적 근거 — 검출된 쟁점 주제에 맞는 사유를 일반 사유 앞에 배치.
+# 일반 사유(SIGNIFICANCE.reasons)는 보존되며, 주제 근거가 '왜 이 주제의 왜곡이 위험한지'를 구체화한다.
+_TOPIC_REASONS: Dict[str, List[Dict[str, str]]] = {
+    "임진왜란·조선 침략 서술": [
+        {
+            "tag": "침략 전쟁 서술 왜곡(임진왜란)",
+            "detail": "임진왜란(1592)·정유재란(1597)은 조선에 대한 명백한 침략 전쟁이다. 발발 주체·목적을 흐리거나 "
+                      "'문화 교류'로 재해석하는 서술은 일본 우익의 침략 미화 논리와 결합해 국제사에서 가해 책임을 지운다.",
+        },
+        {
+            "tag": "전쟁 피해 규모 축소",
+            "detail": "7년 전쟁의 인명·문화재 피해(분청사기·불경 약탈, 서울·평양 함락)는 약탈 문화재 반환 협상과 "
+                      "피해 보상 논의의 사료적 근거다. 피해 규모 왜곡은 반환 요구의 정당성 자체를 훼손한다.",
+        },
+        {
+            "tag": "국방·외교 교훈의 근거 오염",
+            "detail": "이순신의 한산도대첩·명량해전 등 방어 성공 사례는 국방사·교육에서 살아있는 교훈으로 쓰인다. "
+                      "전투 경과·승패 왜곡은 한·일 관계사 서술과 교과서 신뢰를 함께 흔든다.",
+        },
+    ],
+    "일제 강제동원·위안부": [
+        {
+            "tag": "피해 사실 은폐·축소(강제동원·위안부)",
+            "detail": "강제동원·위안부 피해 사실은 1965 한일청구권협정과 국제 사법 판결(대법원 2018 강제동원 배상 판결)의 "
+                      "사료적 기반이다. 은폐·축소 서술은 피해자 회복 청구권의 근거를 지운다.",
+        },
+    ],
+    "6·25 발발 주체": [
+        {
+            "tag": "전쟁 발발 주체 왜곡(6·25)",
+            "detail": "6·25는 북한의 남침으로 발발했다는 사실은 UN 안보리 결의(1950)와 국제사 승인의 기반이다. "
+                      "발발 주체 왜곡은 한반도 안보 질서와 한미동맹의 정당성 논거를 침식한다.",
+        },
+    ],
+}
 
 
 def _territory_svg(focus: Optional[List[tuple]]) -> str:
@@ -169,6 +205,10 @@ def _significance_for(result: AnalysisResult) -> Optional[Dict[str, Any]]:
     import copy
     sig = copy.deepcopy(SIGNIFICANCE)
     topics = (result.analysis_details or {}).get("dispute_topics") or []
+    # 주제별 근거 — 검출된 쟁점의 구체적 위험을 일반 사유 앞에 배치
+    topic_reasons = [r for t in topics if t in _TOPIC_REASONS for r in _TOPIC_REASONS[t]]
+    if topic_reasons:
+        sig["reasons"] = topic_reasons + sig["reasons"]
     territorial = [t for t in topics if t in _MAP_FOCUS]
     if not territorial:
         sig["map"] = None  # 식민·전쟁 쟁점만 언급됐거나 쟁점 없음 — 지도 없음
@@ -195,7 +235,7 @@ class ExplainEngine:
         분석 결과를 매체 유형별 '판별 각도'로 분해 — 한 콘텐츠를 독립된 복수 렌즈로
         교차 판별(다각도 분석)하고 각도별 판정·점수·근거를 제공한다.
 
-        - score: 신뢰도 관점 점수(1.0=정상, 0.0=강한 의심), None=판정 재료 부족(미판정)
+        - score: 위험 관점 점수(0.0=정상, 1.0=강한 의심 — 높을수록 위험), None=판정 재료 부족(미판정)
         - verdict: 정상 / 주의 / 의심 / 미판정 (미분석·미판정은 종합 의심 각도에서 제외)
         """
         d = result.analysis_details or {}
@@ -221,7 +261,7 @@ class ExplainEngine:
                 ev_detail = "검증 가능한 외부 증거 미확보(NEI) — 중립 처리"
             perspectives.append(_perspective(
                 "사료 정합성", "외부 검색 증거 교차 검증(위키백과·DuckDuckGo·Naver·Google Fact Check)",
-                consistency, ev_detail))
+                1.0 - consistency, ev_detail))
 
             kb_hit = (chrono.get("verified_count", 0) or 0) + (chrono.get("contradiction_count", 0) or 0)
             if kb_hit == 0:
@@ -229,49 +269,48 @@ class ExplainEngine:
                     "한국사 연표 KB", "내장 사료 지식베이스(국사편찬위원회 「한국사연표」 기반) 오프라인 교차 검증",
                     None, "본문에서 연표 검증 가능한 '사건/인물 × 연도' 주장 미검출"))
             else:
-                kb_score = 0.0 if chrono.get("contradiction_count", 0) else 1.0
+                kb_risk = 1.0 if chrono.get("contradiction_count", 0) else 0.0
                 kb_detail = (f"연표 검증 일치 {chrono.get('verified_count', 0)}건"
-                             if kb_score else
+                             if not kb_risk else
                              "연표 상충 " + "; ".join(
                                  c.get("detail", "") for c in (chrono.get("contradictions") or [])[:2]))
                 perspectives.append(_perspective(
                     "한국사 연표 KB", "내장 사료 지식베이스(국사편찬위원회 「한국사연표」 기반) 오프라인 교차 검증",
-                    kb_score, kb_detail))
+                    kb_risk, kb_detail))
 
             ai_prob = ai.get("ai_probability", result.ai_probability)
+            ai_method_raw = ai.get("method", "")
             method = {"perplexity": "GPT-2 Perplexity/Burstiness 로컬 추론",
-                      "fallback_lexical": "어휘 다양도 휴리스틱(GPT-2 미설치 폴백)"}.get(ai.get("method", ""), ai.get("method", ""))
+                      "fallback_lexical": "어휘 다양도 휴리스틱(GPT-2 미설치 폴백)",
+                      "insufficient_data": "정보 부족(단문 — 판정 재료 부족)"}.get(ai_method_raw, ai_method_raw)
             perspectives.append(_perspective(
                 "AI 생성 가능성", f"생성형 AI 작성 패턴 탐지({method})",
-                1.0 - ai_prob, f"AI 생성 확률 {_f(ai_prob)}"))
+                None if ai_method_raw == "insufficient_data" else ai_prob,
+                "본문이 짧아 AI 생성 여부를 판정할 재료가 부족함(중립 처리)" if ai_method_raw == "insufficient_data"
+                else f"AI 생성 확률 {_f(ai_prob)}"))
 
             sens_idx = sens.get("sensationalism_index", 0.0)
             perspectives.append(_perspective(
                 "선동성·과장 표현", "감정·선동 어휘 밀도 기반 선동성 지수",
-                1.0 - sens_idx, f"선동성 지수 {_f(sens_idx)}"))
+                sens_idx, f"선동성 지수 {_f(sens_idx)}"))
 
             src_score = src.get("credibility_score", 0.5)
             perspectives.append(_perspective(
                 "출처 신뢰도", "인용 URL 도메인 3-tier(공공기관·언론·일반) 평가",
-                src_score, ("인용 URL 미포함(NEI) — 중립 처리" if not src.get("urls")
-                            else f"출처 등급 {src.get('source_tier', '?')} ({len(src.get('urls', []))}건 인용)")))
+                1.0 - src_score, ("인용 URL 미포함(NEI) — 중립 처리" if not src.get("urls")
+                                  else f"출처 등급 {src.get('source_tier', '?')} ({len(src.get('urls', []))}건 인용)")))
 
             if ana:
                 if ana.get("anachronism"):
-                    a_score = 0.5 if fact.get("debunked") else 0.0
+                    a_score = 0.5 if fact.get("debunked") else 1.0
                     a_detail = ("현대 대상×역사 시대 동시 등장 — 본문이 가짜로 정정 서술" if fact.get("debunked")
                                 else f"현대 대상({', '.join(ana.get('modern_terms', [])[:3])})이 역사 시대와 동시 등장")
                 else:
-                    a_score, a_detail = 1.0, "시대착오 조합 미검출"
+                    a_score, a_detail = 0.0, "시대착오 조합 미검출"
                 perspectives.append(_perspective(
                     "시대착오(Anachronism)", "현대 기기·대상 × 역사 인물·시대 동시 등장 패턴 탐지",
                     a_score, a_detail))
 
-            if llm.get("available"):
-                perspectives.append(_perspective(
-                    "LLM 고증 심사", f"OpenRouter 오픈웨이트 모델 심사(신뢰도 {_f(llm.get('confidence'))})",
-                    (0.9 if not llm.get("is_hallucination") else 0.1),
-                    (llm.get("summary") or ("할루시네이션 판정" if llm.get("is_hallucination") else "정합 판정"))[:120]))
 
         elif media_type == "image":
             ela = d.get("error_level_analysis", {}) or {}
@@ -280,13 +319,13 @@ class ExplainEngine:
 
             perspectives.append(_perspective(
                 "ELA 압축 왜곡", "재인코딩 오차율(Error Level Analysis) 기반 합성 흔적 탐지",
-                None if not ela.get("module_available", False) else 1.0 - ela.get("manipulation_score", 0.0),
+                None if not ela.get("module_available", False) else ela.get("manipulation_score", 0.0),
                 "분석 모듈 미설치 — 판정 보류" if not ela.get("module_available", False)
                 else f"ELA 편차 {ela.get('mean_difference', 0.0):.2f} · 조작 점수 {_f(ela.get('manipulation_score'))}"))
 
             perspectives.append(_perspective(
                 "FFT 주파수 노이즈", "GAN/Diffusion 격자 아티팩트 주파수 스파이크 탐지",
-                None if not fft.get("module_available", False) else 1.0 - fft.get("ai_probability", 0.0),
+                None if not fft.get("module_available", False) else fft.get("ai_probability", 0.0),
                 "정밀 FFT 미수행(의존성 부재 폴백) — 판정 보류" if not fft.get("module_available", False)
                 else f"주파수 스파이크 {fft.get('spike_count', 0)}개 · AI 생성 확률 {_f(fft.get('ai_probability'))}"))
 
@@ -294,13 +333,13 @@ class ExplainEngine:
                 if face.get("synthetic_symmetry"):
                     perspectives.append(_perspective(
                         "안면 비대칭(페이스 스왑)", "Haar Cascade 안면 랜드마크 좌우 대칭 편차 분석",
-                        0.15,
+                        0.85,
                         f"검출 안면 {face.get('detected_faces')}개 · 과대칭(전체 {_f(face.get('raw_asymmetry'))} · "
                         f"내부 {_f(face.get('inner_asymmetry'))}) — 실존 인물 최소값(0.107) 미달, AI 완전 합성 의심"))
                 else:
                     perspectives.append(_perspective(
                         "안면 비대칭(페이스 스왑)", "Haar Cascade 안면 랜드마크 좌우 대칭 편차 분석",
-                        1.0 - face.get("asymmetry_score", 0.0),
+                        face.get("asymmetry_score", 0.0),
                         f"검출 안면 {face.get('detected_faces')}개 · 비대칭 점수 {_f(face.get('asymmetry_score'))}"))
             elif not face.get("module_available", True):
                 # cv2 미설치 환경(서버리스 등) — '얼굴 없음'이 아닌 '분석 불가'로 표시
@@ -318,12 +357,12 @@ class ExplainEngine:
                 deepfake = d.get("deepfake_results", {}) or {}
                 perspectives.append(_perspective(
                     "프레임 연속성(Jitter)", "샘플 프레임 간 히스토그램 차이 기반 temporal jitter 지수",
-                    None if not temporal.get("module_available", True) else 1.0 - temporal.get("jitter_index", 0.0),
+                    None if not temporal.get("module_available", True) else temporal.get("jitter_index", 0.0),
                     "모듈 미설치 — 판정 보류" if not temporal.get("module_available", True)
                     else f"Jitter 지수 {_f(temporal.get('jitter_index'))}"))
                 perspectives.append(_perspective(
                     "안면 합성(딥페이크)", "프레임 샘플 안면 비대칭 최댓값 기반 페이스 스왑 탐지",
-                    None if not deepfake.get("module_available", True) else 1.0 - deepfake.get("max_manipulation_probability", 0.0),
+                    None if not deepfake.get("module_available", True) else deepfake.get("max_manipulation_probability", 0.0),
                     "모듈 미설치 — 판정 보류" if not deepfake.get("module_available", True)
                     else f"검출 안면 {deepfake.get('detected_faces_total', 0)}개 · 최대 합성 확률 {_f(deepfake.get('max_manipulation_probability'))}"))
             else:
@@ -331,12 +370,12 @@ class ExplainEngine:
                 phishing = d.get("phishing_analysis", {}) or {}
                 perspectives.append(_perspective(
                     "음향 스펙트럼(MFCC/HNR)", "MFCC 유사도·조화-비조화 비율 기반 합성 음성 탐지",
-                    None if not spectral.get("module_available", True) else 1.0 - spectral.get("synthetic_voice_probability", 0.0),
+                    None if not spectral.get("module_available", True) else spectral.get("synthetic_voice_probability", 0.0),
                     "모듈 미설치 — 판정 보류" if not spectral.get("module_available", True)
                     else f"합성 음성 확률 {_f(spectral.get('synthetic_voice_probability'))}"))
                 perspectives.append(_perspective(
                     "사칭·유도 어휘", "STT 전사 텍스트의 금전·허위정보 유도 패턴 탐지",
-                    1.0 - phishing.get("phishing_probability", 0.0),
+                    phishing.get("phishing_probability", 0.0),
                     f"유도 위험 확률 {_f(phishing.get('phishing_probability'))}"))
 
         # 다각도 종합 — 실제 판별에 참여한 각도만 집계(미판정·미분석 제외)
@@ -395,7 +434,7 @@ class ExplainEngine:
             "media_type": media_type,
             "decision": {
                 "is_manipulated": result.is_manipulated,
-                "credibility_score": round(result.credibility_score, 2),
+                "risk_score": round(result.risk_score, 2),
                 "risk_level": result.risk_level
             },
             "metrics": {
