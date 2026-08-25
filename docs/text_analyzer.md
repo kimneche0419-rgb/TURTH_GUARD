@@ -1,12 +1,19 @@
-# TruthGuard SDK: Text Analyzer 상세 구현 설계서
+# Truth History SDK: 한국사 텍스트 고증 검증(Text Analyzer) 상세 구현 설계서
 
-본 문서는 `TextAnalyzer` 모듈의 내부 구조, AI 생성 감지 알고리즘(Perplexity & Burstiness)의 파이썬 구현 수식 및 코드, 그리고 외부 API 연동 규격을 상술합니다.
+생성형 AI의 발전은 그럴듯하지만 허위인 한국 역사 서술(역사 할루시네이션)을 대량으로 생성·확산시키는 리스크를 낳고 있다. 본 문서는 `TextAnalyzer` 모듈이 이 위험에 어떻게 대응하는지를 상술합니다.
+
+- **(1) AI 생성 탐지**: 텍스트의 AI 생성 여부를 Perplexity/Burstiness 통계로 정량화한다.
+- **(2) 역사적 정합성 검증**: 검증 대상 텍스트를 권위 있는 한국사 사료·팩트체크(국사편찬위원회, 교과서, 사료 데이터베이스 등)와 교차 검증하여 역사적 정합성을 평가한다.
+
+본 모듈은 4대 탐지 모듈 중 **텍스트 고증 검증**을 담당하며, ELA 이미지 합성 탐지·딥페이크 페이스 스왑 탐지·AI 복제 음성 탐지 모듈과 함께 단일 SDK의 텍스트·시청각 교차 검증 파이프라인을 구성합니다. 경량 로컬 추론과 외부 API 연동의 혼합 설계하에 동작하며, 판정 근거는 XAI 리포트(JSON)로 투명하게 제공합니다.
 
 ---
 
 ## 1. AI 생성 탐지 핵심 알고리즘 및 구현
 
-AI가 생성한 텍스트는 사람이 작성한 텍스트에 비해 단어의 예측 가능성(Perplexity)이 매우 높고, 문장별 길이 및 복잡도의 기복(Burstiness)이 적습니다.
+AI가 생성한 텍스트는 사람이 작성한 텍스트에 비해 단어의 예측 가능성(Perplexity)이 매우 높고, 문장별 길이 및 복잡도의 기복(Burstiness)이 적습니다. 본 모듈은 이 두 지표로 한국사 텍스트의 AI 생성 가능성을 정량화합니다.
+
+> **한국어·한국사 문맥 특화**: 영어 중심의 범용 언어모델(예: GPT-2)은 한글 토크나이징과 역사 도메인 용어 분포를 제대로 반영하지 못합니다. 따라서 한국어 언어모델(Korean LM)과 한국사 코퍼스로 추가 학습된 모델을 전제로 하며, 임계값 보정 역시 한국사 서술의 통계적 특성에 맞춰 적용되어야 합니다.
 
 ### 1.1 Perplexity (PPL) 계산 수식
 Perplexity는 주어진 모델이 해당 문장을 예측할 때의 곤혹도로서, 아래 수식과 같이 손실값(Cross Entropy)의 지수함수로 계산됩니다.
@@ -23,7 +30,7 @@ $$Burstiness = \frac{\sigma_{PPL}}{\mu_{PPL}}$$
 ```python
 import math
 from typing import List
-from truthguard.architecture import LazyModuleImporter
+from truthhistory.architecture import LazyModuleImporter
 
 class AIGenerationDetector:
     def __init__(self, model_name: str = "gpt2"):
@@ -87,10 +94,51 @@ class AIGenerationDetector:
 
 ## 2. 외부 API 연동 설계
 
-기존 기보도 사실과의 정합성 판별을 위해 Google Fact Check API를, 자연어 문맥 분석을 위해 Gemini API(또는 OpenAI GPT API)를 사용합니다.
+AI 생성 탐지와 더불어, 검증 대상 한국사 텍스트가 **권위 있는 역사 사료·팩트체크**와 정합성을 갖는지 평가하기 위해 외부 API를 연동합니다. Google Fact Check API는 사료·팩트체크 데이터베이스에서 일치하는 클레임을 검색하고, LLM(Gemini/OpenAI GPT)은 수집된 참조 문서(국사편찬위원회 자료, 교과서 서술, 디지털 사료 등)와 텍스트 간 주장 정합성을 자연어 추론으로 평가합니다. 두 결과는 경량 로컬 추론과 외부 API 연동의 혼합 설계 하에서 취합되어, 픽셀/주파수 기반의 시청각 모듈과 함께 XAI 판정 근거로 제공됩니다.
+
+### 2.0 다중 검색 증거 계층 (구현됨 — `truthhistory/text/evidence.py`)
+`analyze_fact_consistency`는 주장에서 키워드(한국어 조사 자동 제거)를 추출해 여러 검색 소스를 **병렬**로 조회하고, 수집된 증거 스니펫 대비 **키워드 커버리지 + 상충 단서**로 정합성 점수를 산출한다. 증거가 없으면 중립(0.5), 상충 단서(거짓·허위·왜곡 등) 발견 시 정합성을 0.4 이하로 상한한다.
+
+| 소스 | 키 필요 | 비고 |
+| :--- | :--- | :--- |
+| **한국어 위키백과 검색 API** (`ko.wikipedia.org/w/api.php`) | ❌ 불필요 | 1순위 무료 소스, 한국사 사료 정합성에 가장 효과적 |
+| **DuckDuckGo** (Instant Answer API + HTML 스크립트) | ❌ 불필요 | 보조 소스 |
+| **Naver Search API** (`openapi.naver.com`) | ✅ `NAVER_CLIENT_ID/SECRET` | 한국어 웹결과 특화 |
+| **Google Fact Check API** | ✅ `FACT_CHECK_API_KEY` | 기존 팩트체크 데이터베이스 |
+
+```python
+from truthhistory.text.evidence import gather_evidence, score_consistency
+
+# 병렬 증거 수집 → 정합성 점수 산출 (키 불필요 소스만으로도 동작)
+evidence = gather_evidence(query, naver_client_id=None, naver_client_secret=None)
+result = score_consistency(text, evidence)
+# → {"consistency_score": 0.775, "best_coverage": 0.75, "contradiction": False, ...}
+```
+
+> 키 불필요 소스(위키백과·DuckDuckGo)만으로 기본 정합성 검증이 동작하므로, 클라우드 서버리스(Vercel)에서도 추가 설정 없이 정확도가 향상된다.
+
+### 2.0.1 시대착오(Anachronism) 할루시네이션 탐지 (구현됨 — `truthhistory/text/evidence.py`)
+외부 증거 기반 정합성 검증과 직렬로 동작하는 **규칙 기반 빠른 필터**. 텍스트에 **현대 기기·대상**(맥북·아이폰·아이패드·스마트폰·노트북·인터넷·AI·GPT·자동차·비행기 등)과 **역사 인물·시대·제도**(세종·이순신·장영실·조선·고려·임진왜란·거북선·훈민정음·조선왕조실록 등)가 **동시에 등장**하면 시대착오(Anachronism)로 판정합니다.
+
+`detect_anachronism(text)`가 두 단어군의 교집합을 검출한 뒤, `is_debunked(text)`로 본문이 해당 내용을 **정정 서술**(가짜·할루시네이션·불가능·허구·날조·사실무근 등 상충 단서 포함)하는지 확인합니다. `TextAnalyzer._analyze_fact_consistency`는 결과에 따라 정합성 점수 상한을 적용합니다:
+
+| 조건 | 정합성 점수 처리 | 판정 근거(reasons) |
+| :--- | :--- | :--- |
+| 정정 서술 있음(`is_debunked`) | 상한 **0.6** (과신 방지) | "시대착오 주제(...) 감지 — 본문이 가짜/할루시네이션으로 정정 서술함" |
+| 정정 없는 주장 | 상한 **0.25** + `contradiction=True` | "시대착오(Anachronism) 강력 의심: ... 등 현대 대상이 역사 시대와 동시 등장 — 할루시네이션" (빨간 플래그) |
+
+```python
+from truthhistory.text.evidence import detect_anachronism, is_debunked
+
+ana = detect_anachronism("세종대왕이 아이폰으로 거북선 설계도를 인터넷에 올렸다.")
+# → {"anachronism": True, "modern_terms": ["아이폰", "인터넷"], "historical_markers": ["세종", "거북선"]}
+is_debunked("이는 가짜이며 할루시네이션이다.")  # → True (정정 서술)
+```
+
+> 시대착오 탐지는 외부 검색 지연을 기다리지 않고 즉시 동작하므로, 명백한 할루시네이션(예: "이순신이 스마트폰으로 명량해전을 지휘했다")을 가장 빠르게 차단하는 1차 방어선 역할을 합니다.
 
 ### 2.1 Google Fact Check Explorer API 연동
-주요 팩트체크 기보도 데이터베이스를 쿼리하여 일치하는 클레임이 있는지 검색합니다.
+주요 팩트체크 및 역사 사료 데이터베이스를 쿼리하여, 검증 대상 주장과 일치하는 클레임이 기존에 팩트체크된 내역이 있는지 검색합니다.
 
 ```python
 import urllib.parse
@@ -126,13 +174,13 @@ import google.generativeai as genai
 
 def evaluate_fact_consistency_with_gemini(text: str, context_documents: str, api_key: str) -> float:
     """
-    수집된 레퍼런스 문서들과 검증 대상 텍스트 간의 주장 정합성을 LLM으로 평가합니다.
+    수집된 역사 사료 레퍼런스 문서들과 검증 대상 텍스트 간의 주장 정합성을 LLM으로 평가합니다.
     """
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-1.5-flash')
     
     prompt = f"""
-    아래 [검증 대상 텍스트]가 [참조 데이터]의 사실 정보와 얼마나 일치하는지 평가해라.
+    아래 [검증 대상 텍스트]가 [참조 데이터](국사편찬위원회·교과서·사료 등 권위 있는 역사 사료)의 역사적 사실 정보와 얼마나 일치하는지 평가해라.
     오로지 0.0(완벽히 거짓/모순됨)에서 1.0(완벽히 사실이며 일치함) 사이의 실수값 하나만 반환하라.
     
     [참조 데이터]
@@ -153,12 +201,12 @@ def evaluate_fact_consistency_with_gemini(text: str, context_documents: str, api
 
 ## 3. 단위 테스트 및 모킹(Mocking) 가이드
 
-외부 API 호출 비용과 검증 비결정성을 제거하기 위해, 테스트 시에는 `unittest.mock`을 활용해 API 응답을 모킹하도록 설계합니다.
+외부 API 호출 비용과 검증 비결정성을 제거하기 위해, 테스트 시에는 `unittest.mock`을 활용해 API 응답을 모킹하도록 설계합니다. 이를 통해 역사 사료 기반 정합성 판정 역시 결정론적으로 검증할 수 있습니다.
 
 ```python
 import unittest
 from unittest.mock import patch
-from truthguard.text.analyzer import TextAnalyzer
+from truthhistory.text.analyzer import TextAnalyzer
 
 class TestTextAnalyzer(unittest.TestCase):
     def setUp(self):
@@ -169,8 +217,8 @@ class TestTextAnalyzer(unittest.TestCase):
         }
         self.analyzer = TextAnalyzer(self.config)
 
-    @patch("truthguard.text.analyzer.search_fact_check_claims")
-    @patch("truthguard.text.analyzer.evaluate_fact_consistency_with_gemini")
+    @patch("truthhistory.text.analyzer.search_fact_check_claims")
+    @patch("truthhistory.text.analyzer.evaluate_fact_consistency_with_gemini")
     def test_analyze_with_mocked_apis(self, mock_gemini, mock_factcheck):
         # 모킹 반환값 설정
         mock_factcheck.return_value = [{"text": "테스트 클레임", "review": "거짓"}]
@@ -180,7 +228,7 @@ class TestTextAnalyzer(unittest.TestCase):
         
         self.assertTrue(result.is_manipulated)
         self.assertLess(result.credibility_score, 0.4)
-        self.assertIn("주장과 기보도 사실 간의 불일치성 다수 발견", result.reasons)
+        self.assertIn("주장과 권위 있는 역사 사료 간의 불일치 다수 발견", result.reasons)
 
 if __name__ == "__main__":
     unittest.main()

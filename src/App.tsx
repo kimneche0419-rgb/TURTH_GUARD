@@ -16,7 +16,7 @@ import {
 
 interface Decision {
   is_manipulated: boolean;
-  credibility_score: number;
+  risk_score: number;
   risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 }
 
@@ -33,13 +33,49 @@ interface Explanation {
   location: string;
 }
 
+interface PerspectiveAngle {
+  name: string;
+  basis: string;
+  score: number | null;
+  verdict: '정상' | '주의' | '의심' | '미판정';
+  tone: 'ok' | 'warn' | 'bad' | 'neutral';
+  detail: string;
+}
+
+interface Perspectives {
+  summary: {
+    total_angles: number;
+    engaged_angles: number;
+    suspected_angles: number;
+    caution_angles: number;
+    note: string;
+  };
+  angles: PerspectiveAngle[];
+}
+
+interface Significance {
+  title: string;
+  summary: string;
+  reasons: { tag: string; detail: string }[];
+  map?: {
+    title: string;
+    note: string;
+    svg: string;
+    sources: { label: string; url: string }[];
+  };
+}
+
 interface ScanResult {
   target_file: string;
   media_type: 'text' | 'image' | 'video' | 'audio';
   decision: Decision;
   metrics: Metric;
   explanations: Explanation[];
+  perspectives?: Perspectives;
+  significance?: Significance;
 }
+
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:8000');
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'file' | 'url'>('file');
@@ -49,15 +85,6 @@ export default function App() {
   const [result, setResult] = useState<ScanResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [apiKey, setApiKey] = useState(() => {
-    return localStorage.getItem('tg_api_key') || '';
-  });
-
-  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setApiKey(value);
-    localStorage.setItem('tg_api_key', value);
-  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -92,11 +119,6 @@ export default function App() {
     setResult(null);
 
     try {
-      const headers: Record<string, string> = {};
-      if (apiKey.trim()) {
-        headers['X-API-Key'] = apiKey.trim();
-      }
-
       if (activeTab === 'file') {
         const formData = new FormData();
         formData.append('file', file!);
@@ -104,29 +126,35 @@ export default function App() {
           formData.append('transcript', transcript);
         }
         const response = await axios.post<ScanResult>(
-          'http://localhost:8000/api/v1/scan/media', 
-          formData,
-          { headers }
+          `${API_BASE}/api/v1/scan/media`,
+          formData
         );
         setResult(response.data);
       } else {
         const response = await axios.post<ScanResult>(
-          'http://localhost:8000/api/v1/scan/url', 
-          { url: url.trim() },
-          { headers }
+          `${API_BASE}/api/v1/scan/url`,
+          { url: url.trim() }
         );
         setResult(response.data);
       }
-    } catch (err: any) {
-      if (err.response && err.response.status === 401) {
-        alert('인증 실패: 유효하지 않은 API Key이거나 키가 입력되지 않았습니다.');
-      } else if (err.response && err.response.status === 400 && err.response.data?.detail) {
-        alert(`분석 실패: ${err.response.data.detail}`);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number; data?: { detail?: string } } };
+      if (axiosErr.response?.status === 400 && axiosErr.response.data?.detail) {
+        alert(`분석 실패: ${axiosErr.response.data.detail}`);
       } else {
         alert('분석을 시작하지 못했습니다. 백엔드 FastAPI 서버가 기동 중인지 확인하십시오.');
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getToneColor = (tone: string) => {
+    switch (tone) {
+      case 'ok': return '#10b981';
+      case 'warn': return '#f59e0b';
+      case 'bad': return '#ef4444';
+      default: return '#94a3b8';
     }
   };
 
@@ -173,32 +201,12 @@ export default function App() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '8px' }}>
           <ShieldCheck size={40} style={{ color: '#38bdf8', filter: 'drop-shadow(0 0 10px rgba(56, 189, 248, 0.4))' }} />
           <h1 style={{ fontSize: '32px', fontWeight: 800, letterSpacing: '-0.025em', margin: 0, background: 'linear-gradient(to right, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            TruthGuard SDK
+            Truth History SDK
           </h1>
         </div>
         <p style={{ color: '#94a3b8', fontSize: '15px', margin: 0 }}>
-          AI 가짜뉴스, 딥페이크 변조 미디어 및 오디오 분석 종합 대시보드
+          한국사 왜곡·할루시네이션 및 멀티미디어(이미지·영상·음성) 위변조 통합 탐지 대시보드
         </p>
-        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-          <label style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>API Key (옵션):</label>
-          <input 
-            type="password" 
-            value={apiKey} 
-            onChange={handleApiKeyChange}
-            placeholder="서버 보안 설정 시에만 입력 (기본값: 불필요)" 
-            style={{
-              backgroundColor: '#1e293b',
-              border: '1px solid #334155',
-              borderRadius: '6px',
-              padding: '6px 12px',
-              fontSize: '13px',
-              color: '#f8fafc',
-              width: '240px',
-              outline: 'none',
-              textAlign: 'center'
-            }}
-          />
-        </div>
       </header>
 
       <main style={{ width: '100%', maxWidth: '850px' }}>
@@ -299,12 +307,12 @@ export default function App() {
                 {file && (file.type.startsWith('audio/') || file.name.endsWith('.wav') || file.name.endsWith('.mp3')) && (
                   <div style={{ marginTop: '20px' }}>
                     <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px' }}>
-                      오디오 대화 텍스트 (보이스피싱 분석용)
+                      오디오 전사 텍스트 (AI 복제 음성·사칭 탐지용)
                     </label>
                     <textarea 
                       value={transcript}
                       onChange={(e) => setTranscript(e.target.value)}
-                      placeholder="예: 긴급 상황이니 빠르게 계좌번호로 송금 이체해 주세요."
+                      placeholder="예: 특정 인물을 사칭한 AI 복제 음성이 금전을 요구하거나 허위 사실을 언급하는 문장"
                       style={{
                         width: '100%',
                         boxSizing: 'border-box',
@@ -345,7 +353,7 @@ export default function App() {
                   }}
                 />
                 <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>
-                  입력된 웹주소의 HTML 문서에서 기사 본문 텍스트만 자동으로 크롤링하여 TruthGuard 팩트체크 엔진으로 신뢰도를 즉시 진단합니다.
+                  입력된 웹주소의 HTML 문서에서 기사 본문 텍스트만 자동으로 크롤링하여 Truth History 고증 검증 엔진으로 역사 왜곡·할루시네이션 여부를 즉시 진단합니다.
                 </p>
               </div>
             )}
@@ -432,14 +440,14 @@ export default function App() {
                       stroke={getRiskColor(result.decision.risk_level)} 
                       strokeWidth="8" 
                       strokeDasharray={2 * Math.PI * 55}
-                      strokeDashoffset={2 * Math.PI * 55 * (1.0 - result.decision.credibility_score)}
+                      strokeDashoffset={2 * Math.PI * 55 * (1.0 - result.decision.risk_score)}
                       strokeLinecap="round"
                     />
                   </svg>
                   <div style={{ position: 'absolute', textAlign: 'center' }}>
-                    <span style={{ fontSize: '28px', fontWeight: 800 }}>{(result.decision.credibility_score * 100).toFixed(0)}</span>
+                    <span style={{ fontSize: '28px', fontWeight: 800 }}>{(result.decision.risk_score * 100).toFixed(0)}</span>
                     <span style={{ fontSize: '14px', color: '#94a3b8' }}>%</span>
-                    <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0, textTransform: 'uppercase' }}>신뢰도</p>
+                    <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0, textTransform: 'uppercase' }}>위험도</p>
                   </div>
                 </div>
                 <div style={{ marginTop: '16px', textAlign: 'center' }}>
@@ -471,6 +479,42 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            {/* Multi-angle perspectives — 다각도 판별/분석 시각 자료 */}
+            {result.perspectives && (
+              <div style={{ borderTop: '1px solid #334155', paddingTop: '24px', marginBottom: '24px' }}>
+                <h4 style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🔭 다각도 판별/분석 ({result.perspectives.summary.engaged_angles}/{result.perspectives.summary.total_angles}각도)
+                </h4>
+                <p style={{ fontSize: '13px', color: '#cbd5e1', margin: '0 0 16px 0' }}>{result.perspectives.summary.note}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {result.perspectives.angles.map((angle, idx) => (
+                    <div key={idx}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '13px' }}>
+                        <span style={{ fontWeight: 600 }}>
+                          {angle.name}
+                          <span style={{ color: '#64748b', fontWeight: 400, fontSize: '12px' }}> — {angle.basis}</span>
+                        </span>
+                        <span style={{ fontWeight: 700, color: getToneColor(angle.tone) }}>
+                          {angle.verdict}{angle.score !== null ? ` · ${Math.round(angle.score * 100)}%` : ''}
+                        </span>
+                      </div>
+                      <div style={{ width: '100%', height: '8px', backgroundColor: '#334155', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{
+                          width: `${angle.score !== null ? angle.score * 100 : 0}%`,
+                          height: '100%',
+                          backgroundColor: getToneColor(angle.tone),
+                          borderRadius: '4px'
+                        }} />
+                      </div>
+                      {angle.detail && (
+                        <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>{angle.detail}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Explanations section */}
             <div style={{ borderTop: '1px solid #334155', paddingTop: '24px', marginBottom: '24px' }}>
@@ -514,6 +558,50 @@ export default function App() {
                 </div>
               )}
             </div>
+
+            {/* Significance — 지정학적 역사 왜곡 불허 사유 */}
+            {result.significance && (
+              <div style={{ borderTop: '1px solid #334155', paddingTop: '24px', marginBottom: '24px' }}>
+                <h4 style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  📌 {result.significance.title}
+                </h4>
+                <p style={{
+                  fontSize: '13px', color: '#cbd5e1', margin: '0 0 14px 0',
+                  backgroundColor: 'rgba(56, 189, 248, 0.06)', border: '1px solid rgba(56, 189, 248, 0.25)',
+                  borderRadius: '8px', padding: '12px'
+                }}>
+                  {result.significance.summary}
+                </p>
+                <ul style={{ margin: 0, paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {result.significance.reasons.map((reason, idx) => (
+                    <li key={idx} style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: 1.6 }}>
+                      <strong>{reason.tag}</strong>
+                      <span style={{ color: '#94a3b8' }}> — {reason.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {result.significance.map && (
+                  <div style={{ marginTop: '16px' }}>
+                    <h5 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 8px 0' }}>
+                      🗺️ {result.significance.map.title}
+                    </h5>
+                    <div
+                      style={{ border: '1px solid #334155', borderRadius: '8px', padding: '8px', backgroundColor: '#0f172a' }}
+                      dangerouslySetInnerHTML={{ __html: result.significance.map.svg }}
+                    />
+                    <p style={{ fontSize: '12px', color: '#64748b', margin: '6px 0 8px 0' }}>{result.significance.map.note}</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                      {result.significance.map.sources.map((src, idx) => (
+                        <a key={idx} href={src.url} target="_blank" rel="noopener" style={{ fontSize: '12px', color: '#38bdf8' }}>
+                          {src.label} ↗
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Back button */}
             <button

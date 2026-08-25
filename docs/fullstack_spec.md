@@ -1,12 +1,12 @@
-# TruthGuard SDK: 풀스택 및 다국어 확장 아키텍처 명세서
+# Truth History SDK: 풀스택 및 확장 아키텍처 명세서
 
-본 문서는 Python 백엔드(FastAPI)와 Node.js 프론트엔드(Vite, React, Chrome Extension), 그리고 Agentic AI 환경 연동을 위한 MCP(Model Context Protocol) 서버를 활용하여 TruthGuard SDK의 탐지 성능을 가장 효율적으로 사용하는 풀스택 확장 규격을 상술합니다.
+생성형 AI로 인한 한국 역사 할루시네이션·위변조 리스크에 대응하기 위해, Truth History SDK의 탐지 능력을 뉴스·교육 시스템 등 누구나 자사 인프라에 손쉽게 임베딩할 수 있도록 지원합니다. 본 문서는 FastAPI REST 게이트웨이(`truthhistory_server.py`), React 시각화 대시보드, Chrome 브라우저 익스텐션, 그리고 Agentic AI 환경 연동을 위한 MCP(Model Context Protocol) 서버를 하나의 한국사 신뢰성 가드레일로 통합 적용하는 풀스택 확장 규격을 상술합니다. 텍스트 고증 검증과 이미지·영상·오디오 교차 검증 결과는 동일한 XAI JSON 규격으로 흘러, 모든 계층에서 일관된 판정 근거(픽셀 위치·주파수 노이즈 패턴·랜드마크 오프셋 등)를 제공합니다.
 
 ---
 
 ## 1. Part 1: FastAPI REST Gateway (pip 기반 백엔드)
 
-TruthGuard 라이브러리를 웹 서비스나 모바일 백엔드로 사용하기 위해, 비동기 처리가 가능한 FastAPI 게이트웨이를 구축합니다.
+뉴스사 검증 데스크나 교육 플랫폼이 Truth History 라이브러리를 웹 서비스·모바일 백엔드로 사용할 수 있도록, 한국사 텍스트·역사 이미지·영상·음성을 비동기로 교차 검증하고 XAI JSON을 반환하는 FastAPI 게이트웨이를 구축합니다. 경량 로컬 추론과 외부 API 연동을 혼합 설계하여 자체 검증 레이어 구축 비용을 낮춥니다.
 
 ### 1.1 추가 패키지 요구사항 (`requirements.txt`)
 ```text
@@ -15,7 +15,7 @@ uvicorn>=0.22.0
 python-multipart>=0.0.6
 ```
 
-### 1.2 비동기 REST API 서버 구현 (`truthguard_server.py`)
+### 1.2 비동기 REST API 서버 구현 (`truthhistory_server.py`)
 
 ```python
 import os
@@ -25,13 +25,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 
-import truthguard
-from truthguard.explain.engine import ExplainEngine
+import truthhistory
+from truthhistory.explain.engine import ExplainEngine
 
 app = FastAPI(
-    title="TruthGuard REST API Gateway",
+    title="Truth History REST API Gateway",
     description="텍스트, 이미지, 비디오, 오디오 신뢰성을 검증하는 웹 게이트웨이"
 )
+
 
 # CORS 허용 (React 프론트엔드 연동)
 app.add_middleware(
@@ -59,7 +60,7 @@ async def scan_media(
     transcript: Optional[str] = Form(None)
 ):
     """
-    업로드된 미디어 파일을 저장하고, 적절한 TruthGuard 분석기를 로드하여 XAI 표준 JSON 규격을 반환합니다.
+    업로드된 미디어 파일을 저장하고, 적절한 Truth History 분석기를 로드하여 XAI 표준 JSON 규격을 반환합니다.
     """
     file_ext = file.filename.split(".")[-1]
     media_type = get_media_type_by_ext(file_ext)
@@ -77,13 +78,13 @@ async def scan_media(
         if media_type == "text":
             with open(temp_path, "r", encoding="utf-8") as f:
                 content = f.read()
-            result = truthguard.detect_text(content)
+            result = truthhistory.detect_text(content)
         elif media_type == "image":
-            result = truthguard.detect_image(temp_path)
+            result = truthhistory.detect_image(temp_path)
         elif media_type == "video":
-            result = truthguard.detect_video(temp_path)
+            result = truthhistory.detect_video(temp_path)
         elif media_type == "audio":
-            result = truthguard.detect_audio(temp_path, transcript=transcript or "")
+            result = truthhistory.detect_audio(temp_path, transcript=transcript or "")
 
         # 3. 에러 분석 정보 수집 및 XAI 구조 가공
         anomalies = []
@@ -117,12 +118,12 @@ async def scan_media(
 
 ## 2. Part 2: React Web Dashboard & Browser Extension (npm 기반 프론트엔드)
 
-사용자 편의성을 극대화하기 위해 웹 브라우저 및 대시보드를 구축합니다.
+한국사 신뢰성 검증 결과를 기자·교사·일반 사용자가 직관적으로 확인할 수 있도록, 종합 신뢰도·AI 생성 확률·탐지된 어노말리(ELA 편차 위치·FFT 주파수 노이즈 스파이크 등)를 차트와 리스트로 시각화하는 React 대시보드와 웹 브라우저 익스텐션을 구축합니다.
 
 ### 2.1 프론트엔드 프로젝트 명세 (`package.json`)
 ```json
 {
-  "name": "truthguard-dashboard",
+  "name": "truth-history-dashboard",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -196,7 +197,7 @@ export default function Dashboard() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto font-sans">
-      <h1 className="text-3xl font-bold mb-6 text-gray-800">TruthGuard AI 신뢰도 대시보드</h1>
+      <h1 className="text-3xl font-bold mb-6 text-gray-800">Truth History 한국 역사 신뢰성 · 위변조 탐지 대시보드</h1>
       
       <div className="border-2 border-dashed border-gray-300 p-6 rounded-lg mb-6 text-center">
         <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} className="mb-4 block mx-auto" />
@@ -251,14 +252,14 @@ export default function Dashboard() {
 ```
 
 ### 2.3 Chrome Extension Manifest Specification (`manifest.json`)
-웹서핑 중 마우스 우클릭으로 이미지를 다운받지 않고 백엔드로 즉시 스캔 요청하는 크롬 브라우저 익스텐션 스펙입니다.
+웹서핑 중 마주한 역사 이미지나 한국사 텍스트를 마우스 우클릭으로 다운로드 없이 백엔드로 즉시 전송해 합성·딥페이크·역사 왜곡 여부를 실시간 검사하는 크롬 브라우저 익스텐션 스펙입니다.
 
 ```json
 {
   "manifest_version": 3,
-  "name": "TruthGuard Web Scanner",
+  "name": "Truth History Web Scanner",
   "version": "0.1.0",
-  "description": "우클릭 이미지 및 텍스트의 AI 위변조 실시간 검사",
+  "description": "웹 상 역사 이미지·텍스트의 한국사 위·변조 및 딥페이크 실시간 검사",
   "permissions": [
     "contextMenus",
     "activeTab"
@@ -279,7 +280,7 @@ export default function Dashboard() {
 
 ## 3. Part 3: Model Context Protocol (MCP) Server
 
-에이전트 AI(Claude, Gemini 등)가 웹 서칭 중 만나는 미디어를 자율적으로 검증할 수 있도록 연동하는 JSON-RPC 기반 MCP 인터페이스 규격입니다.
+에이전트 AI(Claude, Gemini 등)가 웹 서칭 중 만나는 한국사 텍스트나 역사 이미지를 자율적으로 교차 검증하고, 역사 할루시네이션·위변조 콘텐츠의 확산을 차단할 수 있도록 연동하는 JSON-RPC 기반 MCP 인터페이스 규격입니다. MCP 서버는 SDK의 경량 로컬 추론 능력을 LLM 에이전트에게 도구로 노출하여, 디지털 역사 주권 수호를 위한 자동 검증 계층을 제공합니다.
 
 ### 3.1 MCP 도구 선언 규격 (`mcp_server.py`)
 ```python
@@ -288,30 +289,30 @@ import asyncio
 from mcp.server.models import InitializationOptions
 from mcp.server import Notification, Server
 import mcp.types as types
-import truthguard
+import truthhistory
 
-server = Server("truthguard-mcp-server")
+server = Server("truthhistory-mcp-server")
 
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
     """
-    LLM 에이전트에게 TruthGuard가 제공하는 분석 툴 리스트를 전달합니다.
+    LLM 에이전트에게 Truth History가 제공하는 분석 툴 리스트를 전달합니다.
     """
     return [
         types.Tool(
-            name="truthguard_scan_text",
-            description="텍스트의 허위 사실 및 AI 작성 확률 판별",
+            name="truthhistory_scan_text",
+            description="한국사 텍스트 고증 및 AI 생성/역사 왜곡 판별",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "text": {"type": "string", "description": "분석할 뉴스/블로그 기사 본문"}
+                    "text": {"type": "string", "description": "분석할 한국사 텍스트 본문"}
                 },
                 "required": ["text"],
             },
         ),
         types.Tool(
-            name="truthguard_scan_image",
-            description="이미지 ELA 및 주파수 노이즈 분석을 통한 합성 및 딥페이크 탐지",
+            name="truthhistory_scan_image",
+            description="ELA·주파수 노이즈 기반 합성/딥페이크 탐지",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -332,14 +333,14 @@ async def handle_call_tool(
     if not arguments:
         raise ValueError("인자가 제공되지 않았습니다.")
 
-    if name == "truthguard_scan_text":
+    if name == "truthhistory_scan_text":
         text = arguments["text"]
-        result = truthguard.detect_text(text)
+        result = truthhistory.detect_text(text)
         return [types.TextContent(type="text", text=result.model_dump_json())]
         
-    elif name == "truthguard_scan_image":
+    elif name == "truthhistory_scan_image":
         image_path = arguments["image_path"]
-        result = truthguard.detect_image(image_path)
+        result = truthhistory.detect_image(image_path)
         return [types.TextContent(type="text", text=result.model_dump_json())]
         
     else:

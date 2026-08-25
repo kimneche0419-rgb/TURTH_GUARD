@@ -1,0 +1,347 @@
+// Chrome MV3 service worker: chrome.tabs.sendMessage / scripting API가 내부적으로
+// Promise를 생성해 reject 시 "Uncaught (in promise)" 로 보고하는 Chrome 런타임 특성 대응.
+// 커넥션 실패 에러는 정상 동작(content script 미주입 탭)이므로 전역에서 억제한다.
+self.addEventListener("unhandledrejection", (ev) => {
+  const reason = ev && ev.reason;
+  const msg = String((reason && (reason.message || reason)) || "");
+  if (
+    msg.includes("Could not establish connection") ||
+    msg.includes("Receiving end does not exist") ||
+    msg.includes("message channel closed") ||
+    msg.includes("message port closed") ||
+    msg.includes("The message port closed before a response was received")
+  ) {
+    ev.preventDefault();  // DevTools 에러 패널에서 제거
+  }
+});
+
+// Truth History SDK - background service worker
+// LLM 역사 할루시네이션 검증 요청을 Truth History REST API로 중계한다.
+// 기본 클라우드 백엔드 (Vercel) 및 로컬 백엔드 (localhost:8000)
+const CLOUD_API_BASE = "https://platy-rho.vercel.app";
+const LOCAL_API_BASE = "http://localhost:8000";
+
+let cachedApiBase = null;
+let lastCheckTime = 0;
+
+async function checkServerHealth(url, timeoutMs = 800) {
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+    const res = await fetch(`${url}/api/v1/health`, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data && data.status === "ok" ? data : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function getApiBase() {
+  const store = await chrome.storage.local.get({
+    backendMode: "auto", // "auto" | "local" | "cloud" | "custom"
+    customApiBase: "http://localhost:8000",
+  });
+
+  if (store.backendMode === "local") return LOCAL_API_BASE;
+  if (store.backendMode === "cloud") return CLOUD_API_BASE;
+  if (store.backendMode === "custom" && store.customApiBase) {
+    return store.customApiBase.replace(/\/+$/, "");
+  }
+
+  // "auto": 5초 캐시 유지 후 로컬 서버(localhost:8000) 우선 체크
+  const now = Date.now();
+  if (cachedApiBase && (now - lastCheckTime < 5000)) {
+    return cachedApiBase;
+  }
+
+  // 1. 로컬 백엔드(localhost:8000) 헬스체크 (정밀 Pillow/OpenCV/librosa 분석 가능)
+  const localHealth = await checkServerHealth(LOCAL_API_BASE);
+  if (localHealth) {
+    cachedApiBase = LOCAL_API_BASE;
+    lastCheckTime = now;
+    return LOCAL_API_BASE;
+  }
+
+  // 2. 미기동 시 Vercel 클라우드로 자동 폴백 (텍스트 고증 지원)
+  cachedApiBase = CLOUD_API_BASE;
+  lastCheckTime = now;
+  return CLOUD_API_BASE;
+}
+
+async function scanText(text) {
+  const apiBase = await getApiBase();
+  const res = await fetch(`${apiBase}/api/v1/scan/text`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`API 오류 ${res.status}: ${detail.slice(0, 160)}`);
+  }
+  return res.json();
+}
+
+// content script 또는 orphaned 탭으로 메시지를 안전하게 전달한다.
+// ★ Chromium 특유의 PromiseRejectionTracker 에러를 차단하기 위해
+//   콜백 기반으로 실행하며 chrome.runtime.lastError를 동기적으로 즉시 소비한다.
+function sendToTab(tabId, msg) {
+  if (!tabId) return;
+  chrome.tabs.sendMessage(tabId, msg, () => {
+    if (!chrome.runtime.lastError) return; // 전송 성공
+
+    // 실패(Content Script 미주입 또는 확장 재로드로 연결 끊김)
+    // -> 전체 파일 주입 대신 경량 함수 실행(func)으로 DOM 이벤트를 발송하여 안전하게 렌더링
+    chrome.scripting.executeScript(
+      {
+        target: { tabId },
+        func: (payload) => {
+          if (typeof window.__TH_DISPATCH__ === "function") {
+            window.__TH_DISPATCH__(payload);
+          } else {
+            window.dispatchEvent(new CustomEvent("TH_MESSAGE", { detail: payload }));
+          }
+        },
+        args: [msg],
+      },
+      () => {
+        void chrome.runtime.lastError; // 실행 불가 탭(chrome:// 등) 에러 무시
+      }
+    );
+  });
+}
+
+// 이미지·영상 URL을 가져와 /api/v1/scan/media(멀티파트)로 검증한다.
+async function scanMediaUrl(url, kind) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`미디어 가져오기 실패 ${res.status}`);
+  const blob = await res.blob();
+  let name = "";
+  try {
+    name = decodeURIComponent(new URL(url).pathname.split("/").filter(Boolean).pop() || "");
+  } catch (_) { name = ""; }
+  const extMatch = name.match(/\.(jpg|jpeg|png|webp|mp4|avi|mov|mkv|wav|mp3|m4a|flac)$/i);
+  const fallbackExt = kind === "video" ? "mp4" : kind === "audio" ? "wav" : "jpg";
+  const filename = extMatch ? name : `${name || "truthhistory-media"}.${fallbackExt}`;
+  const file = new File([blob], filename, { type: blob.type || "application/octet-stream" });
+  const fd = new FormData();
+  fd.append("file", file);
+  const apiBase = await getApiBase();
+  const api = await fetch(`${apiBase}/api/v1/scan/media`, { method: "POST", body: fd });
+  if (!api.ok) {
+    const detail = await api.text().catch(() => "");
+    throw new Error(`API 오류 ${api.status}: ${detail.slice(0, 160)}`);
+  }
+  return api.json();
+}
+
+const YT_URL_RE = /(?:youtube\.com\/(?:watch\?[^#]*v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/;
+const RISK_ORDER = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
+
+function isYoutubeUrl(u) {
+  return !!(u && YT_URL_RE.test(u));
+}
+
+// YouTube 영상 검증 — oEmbed 메타데이터(제목·채널·썸네일) 기반:
+// ① 썸네일 이미지 ELA/합성 분석(/scan/media) ② 제목·채널명 텍스트 고증(/scan/text) 병합.
+async function scanYoutube(url) {
+  const m = url.match(YT_URL_RE);
+  if (!m) throw new Error("YouTube URL이 아닙니다");
+  const oe = await fetch(
+    `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
+  );
+  if (!oe.ok) throw new Error(`YouTube 정보 조회 실패 ${oe.status}`);
+  const meta = await oe.json();
+
+  const [thumbReport, titleReport] = await Promise.all([
+    meta.thumbnail_url ? scanMediaUrl(meta.thumbnail_url, "image").catch(() => null) : null,
+    scanText(`"${meta.title}" — ${meta.author_name} 채널의 YouTube 영상`).catch(() => null),
+  ]);
+
+  const exps = [
+    ...((thumbReport && thumbReport.explanations) || []),
+    ...((titleReport && titleReport.explanations) || []),
+  ];
+  const scoreList = [thumbReport, titleReport]
+    .filter(Boolean)
+    .map((r) => (r.decision && r.decision.risk_score != null ? r.decision.risk_score : 0));
+  const risks = [thumbReport, titleReport]
+    .filter(Boolean)
+    .map((r) => (r.decision && r.decision.risk_level) || "LOW");
+  const worst = risks.sort((a, b) => RISK_ORDER.indexOf(b) - RISK_ORDER.indexOf(a))[0] || "LOW";
+  const risk = scoreList.length ? Math.max(...scoreList) : 0.5;
+  const manipulated = !!(thumbReport || titleReport) &&
+    ((thumbReport && thumbReport.decision && thumbReport.decision.is_manipulated) ||
+     (titleReport && titleReport.decision && titleReport.decision.is_manipulated));
+
+  return {
+    target_file: meta.title,
+    media_type: "video(youtube)",
+    decision: { is_manipulated: manipulated, risk_score: risk, risk_level: worst },
+    metrics: {
+      ai_generation_probability: (titleReport && titleReport.metrics && titleReport.metrics.ai_generation_probability) || 0,
+      editing_artifact_score: (thumbReport && thumbReport.metrics && thumbReport.metrics.editing_artifact_score) || 0,
+      semantic_consistency_score: (titleReport && titleReport.metrics && titleReport.metrics.semantic_consistency_score) || 0,
+    },
+    explanations: exps.length ? exps : [{ code: "YOUTUBE_SCAN", severity: "WARNING", message: "YouTube 메타데이터(썸네일·제목) 기반 검증 결과 없음 — 중립 처리", location: "global" }],
+    evidence: (titleReport && titleReport.evidence) || [],
+    reference: (titleReport && titleReport.reference) || {},
+    youtube: { url, title: meta.title, author: meta.author_name },
+  };
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  // 재설치/업데이트/새로고침 시 중복 ID 에러 방지 — 기존 메뉴 전부 제거 후 재생성
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: "th-scan-selection",
+      title: "Truth History: 이 텍스트 역사 할루시네이션 검사",
+      contexts: ["selection"],
+    });
+    chrome.contextMenus.create({
+      id: "th-scan-image",
+      title: "Truth History: 이 이미지 위변조(합성) 검사",
+      contexts: ["image"],
+    });
+    chrome.contextMenus.create({
+      id: "th-scan-video",
+      title: "Truth History: 이 영상(YouTube) 딥페이크·왜곡 검사",
+      contexts: ["video", "frame"],  // "link" 제거 — 모든 링크에 노출되어 혼란
+    });
+  });
+});
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  const tabId = tab && tab.id;
+  if (!tabId) return;
+
+  if (info.menuItemId === "th-scan-selection" && info.selectionText) {
+    try {
+      const report = await scanText(info.selectionText);
+      await chrome.storage.local.set({
+        lastReport: report,
+        lastText: info.selectionText.slice(0, 240),
+        lastTs: Date.now(),
+      }).catch(() => {});
+      await sendToTab(tabId, { type: "TH_SHOW_RESULT", report });
+    } catch (e) {
+      await sendToTab(tabId, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
+    }
+    return;
+  }
+  if (info.menuItemId === "th-scan-image" && info.srcUrl) {
+    try {
+      const report = await scanMediaUrl(info.srcUrl, "image");
+      await chrome.storage.local.set({
+        lastReport: report,
+        lastText: `이미지: ${info.srcUrl.slice(0, 200)}`,
+        lastTs: Date.now(),
+      }).catch(() => {});
+      await sendToTab(tabId, { type: "TH_SHOW_RESULT", report });
+    } catch (e) {
+      await sendToTab(tabId, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
+    }
+    return;
+  }
+  if (info.menuItemId === "th-scan-video") {
+    const target = info.srcUrl || info.frameUrl || info.pageUrl;
+    if (!target) return;  // URL 없으면 무시
+    try {
+      const report = isYoutubeUrl(target)
+        ? await scanYoutube(target)
+        : await scanMediaUrl(target, "video");
+      await chrome.storage.local.set({
+        lastReport: report,
+        lastText: `영상: ${String(target).slice(0, 200)}`,
+        lastTs: Date.now(),
+      }).catch(() => {});
+      await sendToTab(tabId, { type: "TH_SHOW_RESULT", report });
+    } catch (e) {
+      await sendToTab(tabId, { type: "TH_ERROR", message: String(e && e.message ? e.message : e) });
+    }
+  }
+});
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (!msg) return false;
+
+  if (msg.type === "TH_SCAN") {
+    scanText(msg.text)
+      .then((report) => {
+        try { sendResponse({ ok: true, report }); } catch (_) {}
+      })
+      .catch((e) => {
+        try { sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }); } catch (_) {}
+      });
+    return true; // keep channel open for async response
+  }
+  if (msg.type === "TH_SCAN_MEDIA") {
+    scanMediaUrl(msg.url, msg.kind)
+      .then((report) => {
+        try { sendResponse({ ok: true, report }); } catch (_) {}
+      })
+      .catch((e) => {
+        try { sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }); } catch (_) {}
+      });
+    return true;
+  }
+  if (msg.type === "TH_SCAN_YOUTUBE") {
+    scanYoutube(msg.url)
+      .then((report) => {
+        try { sendResponse({ ok: true, report }); } catch (_) {}
+      })
+      .catch((e) => {
+        try { sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }); } catch (_) {}
+      });
+    return true;
+  }
+  if (msg.type === "TH_GET_BACKEND_STATUS") {
+    (async () => {
+      const currentApi = await getApiBase();
+      const localHealth = await checkServerHealth(LOCAL_API_BASE);
+      const isLocalActive = !!localHealth;
+      sendResponse({
+        ok: true,
+        currentApi,
+        isLocalActive,
+        localHealth,
+        cloudApi: CLOUD_API_BASE,
+        localApi: LOCAL_API_BASE,
+      });
+    })();
+    return true;
+  }
+  if (msg.type === "TH_DOWNLOAD_MEDIA") {
+    // 정밀 분석용 원본 다운로드 — 서버리스 백엔드가 미분석(중립) 판정 시 로컬 CLI로 넘기는 경로
+    (async () => {
+      try {
+        const res = await fetch(msg.url);
+        if (!res.ok) throw new Error(`이미지 가져오기 실패 (HTTP ${res.status})`);
+        const blob = await res.blob();
+        // MV3 서비스 워커에는 URL.createObjectURL이 없음 → FileReader data URL로 전달
+        const dataUrl = await new Promise((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(fr.result);
+          fr.onerror = () => reject(new Error("원본 인코딩 실패"));
+          fr.readAsDataURL(blob);
+        });
+        let name = decodeURIComponent((msg.url.split("?")[0].split("#")[0].split("/").pop() || "")).replace(/[^\w.\-가-힣]/g, "_");
+        if (!/\.[A-Za-z0-9]{2,5}$/.test(name)) name += ".jpg";
+        let id;
+        try {
+          id = await chrome.downloads.download({ url: dataUrl, filename: name, saveAs: true });
+        } catch (_) {
+          // 저장 대화상자를 지원하지 않는 환경(헤드리스 등) — 기본 위치로 자동 저장
+          id = await chrome.downloads.download({ url: dataUrl, filename: name });
+        }
+        sendResponse({ ok: true, id });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e && e.message ? e.message : e) });
+      }
+    })();
+    return true;
+  }
+  return false;
+});

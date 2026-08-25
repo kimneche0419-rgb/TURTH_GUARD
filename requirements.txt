@@ -1,0 +1,10 @@
+# Truth History SDK - Vercel 서버리스 백엔드 의존성
+# 전 모듈 정밀 분석 지원: ELA/FFT(Pillow+numpy) + 안면 비대칭·Haar 검출(opencv-headless)
+# (opencv-python-headless는 libGL 불필요 헤드리스 빌드 — 서버리스 호환)
+fastapi>=0.100.0
+pydantic>=2.0.0
+requests>=2.31.0
+opencv-python-headless>=4.8.0
+python-multipart>=0.0.6
+pillow>=10.0.0
+numpy>=1.26.0

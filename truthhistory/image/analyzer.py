@@ -1,0 +1,224 @@
+# -*- coding: utf-8 -*-
+import os
+import tempfile
+from typing import Any, Dict, List
+
+from truthhistory.base import BaseAnalyzer, AnalysisResult, LazyModuleImporter
+from truthhistory.image.classifier import classify_history_image
+from truthhistory.utils import face_asymmetry_score
+
+class ImageAnalyzer(BaseAnalyzer):
+    """
+    이미지 변조 감지 및 AI 생성 여부를 정밀 분석하는 클래스
+    """
+
+    def initialize_model(self) -> None:
+        self.ela_quality = self.config.get("ela_quality", 95)
+        self.ela_threshold = self.config.get("ela_threshold", 12.0)
+        self.weights = self.config.get("weights", {
+            "ela_weight": 0.4,
+            "fft_weight": 0.3,
+            "deepfake_weight": 0.3
+        })
+
+    def analyze(self, data: str, **kwargs) -> AnalysisResult:
+        if not isinstance(data, str):
+            raise ValueError("ImageAnalyzer는 이미지 파일 경로(str)만 처리할 수 있습니다.")
+            
+        if not os.path.exists(data):
+            raise FileNotFoundError(f"Image file not found: {data}")
+
+        # 1. ELA (Error Level Analysis) 분석
+        ela_results = self.analyze_error_level(data)
+        ela_score = ela_results.get("manipulation_score", 0.0)
+
+        # 2. FFT 주파수 아티팩트 분석
+        fft_results = self.analyze_frequency_domain(data)
+        ai_prob = fft_results.get("ai_probability", 0.0)
+
+        # 3. 딥페이크 안면 특징점 분석
+        deepfake_results = self.detect_deepfake_face(data)
+        # 유효 딥페이크 점수 — 스왑형 비대칭 또는 완전 합성형 과대칭(synthetic_symmetry) 중 최대
+        deepfake_score = max(
+            deepfake_results.get("asymmetry_score", 0.0),
+            0.85 if deepfake_results.get("synthetic_symmetry") else 0.0,
+        )
+
+        # 가중합 위험 점수 계산 (높을수록 위험)
+        risk_score = (
+            self.weights["ela_weight"] * ela_score +
+            self.weights["fft_weight"] * ai_prob +
+            self.weights["deepfake_weight"] * deepfake_score
+        )
+
+        risk_level = self._determine_risk_level(risk_score, ai_prob)
+
+        reasons = []
+        if ela_results.get("has_manipulation_suspect", False):
+            reasons.append("이미지 내 특정 구역에서 비정상적인 ELA 압축 오차 감지 (합성 의심)")
+        if ai_prob > 0.8:
+            reasons.append(f"주파수 노이즈 분석 결과 GAN/Diffusion 격자 아티팩트 검출 (확률: {ai_prob * 100:.1f}%)")
+        if deepfake_results.get("synthetic_symmetry", False):
+            reasons.append(
+                f"안면 좌우 대칭 편차(전체 {deepfake_results.get('raw_asymmetry', 0):.3f} · "
+                f"내부 {deepfake_results.get('inner_asymmetry', 0):.3f})가 실존 인물 사진 통계"
+                "(전체 ≥ 0.107)보다 현저히 낮음 — AI 완전 합성 얼굴 의심")
+        if deepfake_results.get("is_deepfake_suspect", False) and not deepfake_results.get("synthetic_symmetry", False):
+            reasons.append("안면 랜드마크 매칭 결과 대칭도 및 그림자 왜곡 감지 (딥페이크 의심)")
+
+        # 피드백 보장: 의존성 부재 경고 또는 정상 판정 근거를 항상 제공
+        modules_available = ela_results.get("module_available", True) and fft_results.get("module_available", True)
+        if not modules_available:
+            risk_score = 0.50
+            risk_level = "MEDIUM"
+            is_manipulated = False
+            reasons.append("⚠ 이미지 정밀 분석 모듈(Pillow/OpenCV)이 설치되지 않은 환경 — 중립(50%) 결과 반환됨. "
+                           "정밀 ELA/FFT 분석은 로컬 CLI(`th scan 이미지경로`) 또는 `pip install -e .[image]` 후 이용")
+        else:
+            is_manipulated = (risk_score > 0.4) or (ai_prob > 0.85)
+            if not reasons:
+                reasons.append(f"이상 징후 미검출 — ELA 평균 편차 {ela_results.get('mean_difference', 0.0):.2f}"
+                               f"(정상 범위) · FFT 주파수 스파이크 {fft_results.get('spike_count', 0)}개 · 안면 비대칭 정상")
+
+        return AnalysisResult(
+            is_manipulated=is_manipulated,
+            risk_score=round(max(risk_score, 0.0), 4),
+            risk_level=risk_level,
+            ai_probability=round(ai_prob, 4),
+            analysis_details={
+                "error_level_analysis": ela_results,
+                "frequency_analysis": fft_results,
+                "deepfake_analysis": deepfake_results,
+                # 역사 이미지 분류(확장 배지 부착 여부 신호) — 파일명·픽셀 휴리스틱
+                "history_relevance": classify_history_image(data),
+            },
+            reasons=reasons
+        )
+
+    def supported_formats(self) -> List[str]:
+        return ["jpg", "jpeg", "png", "webp"]
+
+    def analyze_error_level(self, image_path: str) -> Dict[str, Any]:
+        """
+        ELA (Error Level Analysis) 이미지 저장 픽셀 편차 분석
+        """
+        try:
+            np = LazyModuleImporter.import_module("numpy", "image")
+            Image = LazyModuleImporter.import_module("PIL.Image", "image")
+            ImageChops = LazyModuleImporter.import_module("PIL.ImageChops", "image")
+            
+            temp_filename = os.path.join(tempfile.gettempdir(), f"temp_ela_{os.path.basename(image_path)}")
+            
+            # 원본 로드 후 지정 퀄리티로 임시 저장
+            original = Image.open(image_path).convert("RGB")
+            original.save(temp_filename, "JPEG", quality=self.ela_quality)
+            
+            compressed = Image.open(temp_filename)
+            diff = ImageChops.difference(original, compressed)
+            
+            # 픽셀 오차 분석
+            diff_np = np.array(diff)
+            mean_difference = np.mean(diff_np)
+            
+            # 임시 파일 제거
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
+                
+            has_manipulation = bool(mean_difference > self.ela_threshold)
+            manip_score = float(min(mean_difference / 40.0, 1.0))
+            
+            return {
+                "has_manipulation_suspect": has_manipulation,
+                "manipulation_score": round(manip_score, 4),
+                "mean_difference": round(float(mean_difference), 2),
+                "module_available": True
+            }
+            
+        except (ImportError, Exception):
+            # 라이브러리가 없거나 연산 실패 시 더미/기본값 반환 — 분석 미수행을 명시해 사용자 피드백 보장
+            return {
+                "has_manipulation_suspect": False,
+                "manipulation_score": 0.0,
+                "mean_difference": 0.0,
+                "module_available": False
+            }
+
+    def analyze_frequency_domain(self, image_path: str) -> Dict[str, Any]:
+        """
+        2D Fast Fourier Transform을 활용해 주기적 노이즈(Grid) 탐지
+        그레이스케일 로드는 cv2 우선 — 미설치 환경(서버리스)에서는 Pillow로 폴백해
+        정밀 FFT가 항상 동작하도록 한다.
+        """
+        try:
+            np = LazyModuleImporter.import_module("numpy", "image")
+            loader = "cv2"
+            try:
+                cv2 = LazyModuleImporter.import_module("cv2", "image")
+                img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+            except ImportError:
+                loader = "pillow"
+                PILImage = LazyModuleImporter.import_module("PIL.Image", "image")
+                with PILImage.open(image_path) as im:
+                    img = np.asarray(im.convert("L"))
+            if img is None:
+                return {"ai_probability": 0.0, "spike_count": 0, "module_available": True, "loader": loader}
+
+            f_transform = np.fft.fft2(img)
+            f_shift = np.fft.fftshift(f_transform)
+            magnitude_spectrum = 20 * np.log(np.abs(f_shift) + 1)
+
+            # 중앙 저주파 마스킹
+            h, w = img.shape
+            cy, cx = h // 2, w // 2
+            magnitude_spectrum[cy-10:cy+10, cx-10:cx+10] = 0
+
+            threshold = np.mean(magnitude_spectrum) + 3.0 * np.std(magnitude_spectrum)
+            spikes = np.argwhere(magnitude_spectrum > threshold)
+
+            ai_prob = min(len(spikes) / 1500.0, 1.0)
+
+            return {
+                "ai_probability": round(ai_prob, 4),
+                "spike_count": len(spikes),
+                "module_available": True,
+                "loader": loader
+            }
+        except (ImportError, Exception):
+            # numpy/Pillow 마저 없는 환경 — 확장자 패턴 기반 간이 탐지 폴백
+            ext = image_path.split(".")[-1].lower()
+            ai_prob = 0.4 if ext == "webp" else 0.1
+            return {
+                "ai_probability": ai_prob,
+                "spike_count": 0,
+                "module_available": False
+            }
+
+    def detect_deepfake_face(self, image_path: str) -> Dict[str, Any]:
+        """
+        Haar Cascade 기반 안면 좌우 대칭 편차 분석으로 페이스 스왑(딥페이크) 의심 점수 산출.
+        그레이스케일 로드는 cv2 우선·Pillow 폴백 — 안면 검출 자체는 자체 numpy Haar
+        검출기(`truthhistory/utils/haar.py`)로 cv2 없는 서버리스에서도 정상 동작한다.
+        의존성 부재(module_available=False)와 얼굴 미검출(detected_faces=0)을 구분해 반환한다.
+        """
+        try:
+            np = LazyModuleImporter.import_module("numpy", "image")
+            try:
+                cv2 = LazyModuleImporter.import_module("cv2", "image")
+                img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+            except ImportError:
+                PILImage = LazyModuleImporter.import_module("PIL.Image", "image")
+                with PILImage.open(image_path) as im:
+                    img = np.asarray(im.convert("L"))
+            if img is None:
+                return {"is_deepfake_suspect": False, "asymmetry_score": 0.0,
+                        "detected_faces": 0, "module_available": True}
+            result = face_asymmetry_score(img)
+            result["module_available"] = True
+            return result
+        except ImportError:
+            # numpy/Pillow 마저 없는 환경 — '얼굴 없음'이 아닌 '분석 불가'로 명확히 구분
+            return {"is_deepfake_suspect": False, "asymmetry_score": 0.0,
+                    "detected_faces": 0, "module_available": False}
+        except Exception:
+            return {"is_deepfake_suspect": False, "asymmetry_score": 0.0,
+                    "detected_faces": 0, "module_available": True}
